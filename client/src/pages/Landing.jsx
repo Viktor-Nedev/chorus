@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 // 200 CSS-only частици — генерираме inline стилове веднъж
 function ParticleField() {
@@ -38,23 +39,48 @@ function ParticleField() {
   );
 }
 
-export function Landing({ navigate }) {
+const FEATURES = [
+  { icon: '😊', label: 'Emotion' },
+  { icon: '🖐', label: 'Gesture' },
+  { icon: '🎙', label: 'Voice' },
+  { icon: '🖌', label: 'Brushes' },
+];
+
+export function Landing({ navigate, theme, toggleTheme }) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink flex flex-col items-center justify-center">
       <ParticleField />
 
+      <ThemeToggle theme={theme} onToggle={toggleTheme} className="absolute top-5 right-5 z-20" />
+
       <div className="relative z-10 flex flex-col items-center px-6 animate-slide-up">
-        <h1 className="font-display text-6xl md:text-8xl font-bold tracking-[0.15em] text-white">
+        <h1 className="font-display text-6xl md:text-8xl font-bold tracking-[0.15em] text-white glow-pulse">
           CHORUS
         </h1>
         <p className="mt-3 font-body text-sm md:text-base text-gray-400 tracking-wide text-center">
           Your voice, face and hands become the brush.
         </p>
 
-        <div className="mt-14 flex flex-col md:flex-row gap-5 w-full max-w-2xl">
+        {/* Feature strip — какво захранва рисуването */}
+        <div className="mt-5 flex items-center gap-2">
+          {FEATURES.map((f, i) => (
+            <div key={f.label} className="flex items-center gap-2">
+              <span
+                className="flex items-center gap-1.5 rounded-full border border-ink-line bg-ink-soft/50 px-3 py-1 text-xs text-gray-400 backdrop-blur"
+                title={f.label}
+              >
+                <span className="text-sm leading-none">{f.icon}</span>
+                {f.label}
+              </span>
+              {i < FEATURES.length - 1 && <span className="text-ink-line text-xs">·</span>}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-col md:flex-row gap-5 w-full max-w-2xl">
           <button
             onClick={() => navigate('solo')}
-            className="group flex-1 rounded-2xl border border-ink-line bg-ink-soft/60 backdrop-blur p-6 text-left hover:border-violet-500 hover:bg-violet-950/20 transition-all duration-300"
+            className="group flex-1 rounded-2xl border border-ink-line bg-ink-soft/60 backdrop-blur p-6 text-left hover:border-violet-500 hover:bg-violet-950/20 transition-all duration-300 hover:-translate-y-0.5"
           >
             <div className="font-display text-xl text-white group-hover:text-violet-300 transition">
               SOLO
@@ -63,14 +89,14 @@ export function Landing({ navigate }) {
               Create Your Artwork
             </div>
             <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-              Paint alone. Your emotions, voice and gestures. The artwork is entirely yours — save
-              it when it feels done.
+              Paint alone with a full toolbar — brushes, lines, shapes — while your emotions, voice
+              and gestures shape the particles around you. Save it when it feels done.
             </p>
           </button>
 
           <button
             onClick={() => navigate('collective')}
-            className="group flex-1 rounded-2xl border border-ink-line bg-ink-soft/60 backdrop-blur p-6 text-left hover:border-cyan-500 hover:bg-cyan-950/20 transition-all duration-300"
+            className="group flex-1 rounded-2xl border border-ink-line bg-ink-soft/60 backdrop-blur p-6 text-left hover:border-cyan-500 hover:bg-cyan-950/20 transition-all duration-300 hover:-translate-y-0.5"
           >
             <div className="font-display text-xl text-white group-hover:text-cyan-300 transition">
               COLLECTIVE
@@ -79,7 +105,8 @@ export function Landing({ navigate }) {
               Join the Chorus
             </div>
             <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-              Enter a shared session with up to 7 others. The art belongs to everyone in the room.
+              Enter a shared session with up to 7 others. The art belongs to everyone in the room —
+              end the session to receive a poem written about your moment together.
             </p>
           </button>
         </div>

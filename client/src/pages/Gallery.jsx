@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 
-export function Gallery({ navigate }) {
+export function Gallery({ navigate, theme, toggleTheme }) {
   const { fetchGallery, fetchArtwork, deleteArtwork, loading } = useArtworkStore();
   const [artworks, setArtworks] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'solo' | 'collective'
@@ -85,6 +86,8 @@ export function Gallery({ navigate }) {
             >
               {sort} ↕
             </button>
+            <span className="w-px h-4 bg-ink-line mx-1" />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
 

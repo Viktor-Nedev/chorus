@@ -3,6 +3,7 @@ import p5 from 'p5';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { EMOTION_CONFIGS } from '../constants/emotions';
 import { applySwarmRules } from '../engine/swarmRules';
+import { CANVAS_BG } from '../hooks/useTheme';
 
 // Помощни функции за рисуване
 
@@ -63,34 +64,30 @@ function drawParticle(p, particle) {
   }
 }
 
-function drawBurst(p, x, y, hexColor, radius) {
+function drawBurstEffect(layer, x, y, hexColor, radius) {
   const c = hexToRgb(hexColor);
   for (let i = 0; i < 60; i++) {
     const angle = Math.random() * Math.PI * 2;
     const r = Math.random() * radius;
     const px = x + Math.cos(angle) * r;
     const py = y + Math.sin(angle) * r;
-    p.noStroke();
-    p.fill(c.r, c.g, c.b, Math.random() * 200 + 55);
-    p.ellipse(px, py, Math.random() * 6 + 2);
+    layer.noStroke();
+    layer.fill(c.r, c.g, c.b, Math.random() * 200 + 55);
+    layer.ellipse(px, py, Math.random() * 6 + 2);
   }
-}
-
-function hslToRgb(h, s, l) {
-  s /= 100;
-  l /= 100;
-  const k = (n) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return { r: Math.round(f(0) * 255), g: Math.round(f(8) * 255), b: Math.round(f(4) * 255) };
 }
 
 /**
  * P5Canvas — един компонент за двата режима.
  *
  * ВАЖНО: p5 инстанцията се създава ВЕДНЪЖ. Всички живи данни (emotion,
- * gesture, audio, tool настройки) влизат през refs — четат се директно
- * в draw() loop без да рестартират p5.
+ * gesture, audio, tool настройки, тема) влизат през refs — четат се
+ * директно в draw() loop без да рестартират p5.
+ *
+ * Ръчното рисуване (Solo) отива в отделен постоянен `drawLayer` (p5.Graphics),
+ * който се композира върху canvas-а всеки кадър БЕЗ ефекта на избледняване —
+ * затова щрихите остават запазени, докато частиците продължават да оставят
+ * фосилни следи.
  *
  * props:
  *  - mode: 'solo' | 'collective'
@@ -101,7 +98,8 @@ function hslToRgb(h, s, l) {
  *  - baseColor: {r,g,b}                        (цвят на частиците по подразбиране)
  *  - usersRef                                  (Collective; чужди потребители)
  *  - myAudioLevelRef                           (Collective)
- *  - onSystemReady(system, p5instance)         (callback за export/clear достъп)
+ *  - themeRef                                  (ref 'dark' | 'light' — за фона на canvas-а)
+ *  - onSystemReady(system, p5instance, api)    (callback за export/clear достъп)
  */
 export function P5Canvas({
   mode = 'solo',
@@ -114,6 +112,7 @@ export function P5Canvas({
   baseColor = { r: 150, g: 100, b: 255 },
   usersRef,
   myAudioLevelRef,
+  themeRef,
   onSystemReady,
 }) {
   const containerRef = useRef(null);
@@ -139,26 +138,40 @@ export function P5Canvas({
     let shapeStartX = 0;
     let shapeStartY = 0;
     let waveDist = 0;
+    let drawLayer = null; // p5.Graphics — постоянен слой за ръчно рисуване
+
+    const bg = () => (themeRef?.current === 'light' ? CANVAS_BG.light : CANVAS_BG.dark);
 
     const sketch = (p) => {
       p.setup = () => {
         p.createCanvas(w, h);
-        p.background(10, 10, 15);
+        p.background(bg().r, bg().g, bg().b);
         p.colorMode(p.RGB, 255);
-        onReadyRef.current?.(particleSystem, p);
+        drawLayer = p.createGraphics(w, h);
+        drawLayer.clear(); // прозрачен, за да не покрива фона
+
+        onReadyRef.current?.(particleSystem, p, {
+          clearAll: () => {
+            drawLayer.clear();
+            p.background(bg().r, bg().g, bg().b);
+          },
+        });
       };
 
       p.windowResized = () => {
         const nw = containerRef.current?.clientWidth || window.innerWidth;
         const nh = containerRef.current?.clientHeight || window.innerHeight;
         p.resizeCanvas(nw, nh);
-        p.background(10, 10, 15);
+        p.background(bg().r, bg().g, bg().b);
+        drawLayer.resizeCanvas(nw, nh);
         particleSystem.resize(nw, nh);
       };
 
       p.draw = () => {
-        // Фосилен ефект — много бавно избледняване, оставя следи
-        p.fill(10, 10, 15, 6);
+        const { r, g, b } = bg();
+
+        // Фосилен ефект — много бавно избледняване, само за частиците
+        p.fill(r, g, b, 6);
         p.noStroke();
         p.rect(0, 0, p.width, p.height);
 
@@ -200,6 +213,10 @@ export function P5Canvas({
 
         particleSystem.update(audio, EMOTION_CONFIGS[emotion], { gesture });
 
+        // ── Постоянният слой за ръчно рисуване — рисува се всеки кадър
+        // на пълна плътност, така че НЕ избледнява със фосилния ефект
+        if (drawLayer) p.image(drawLayer, 0, 0);
+
         // ── Рисувай чуждите частици (Collective) — прости точки
         if (mode === 'collective' && usersRef?.current) {
           Object.values(usersRef.current).forEach((u) => {
@@ -215,6 +232,29 @@ export function P5Canvas({
         // ── Рисувай моите частици
         particleSystem.particles.forEach((particle) => drawParticle(p, particle));
 
+        // ── Live preview за инструменти, рисувани на release (Line/Circle/Rect)
+        if (mode === 'solo' && isDrawing && toolRef?.current) {
+          const { tool: activeTool, color, size } = toolRef.current;
+          if (activeTool === 'LINE' || activeTool === 'CIRCLE' || activeTool === 'RECT') {
+            const c = hexToRgb(color);
+            p.push();
+            p.noFill();
+            p.stroke(c.r, c.g, c.b, 160);
+            p.strokeWeight(Math.max(1, size * 0.4));
+            if (activeTool === 'LINE') {
+              p.line(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
+            } else if (activeTool === 'CIRCLE') {
+              const r2 = p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
+              p.ellipse(shapeStartX, shapeStartY, r2 * 2);
+            } else if (activeTool === 'RECT') {
+              p.rectMode(p.CORNERS);
+              p.rect(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
+              p.rectMode(p.CORNER);
+            }
+            p.pop();
+          }
+        }
+
         // ── Eraser preview
         if (mode === 'solo' && tool?.tool === 'ERASER') {
           p.noFill();
@@ -224,7 +264,7 @@ export function P5Canvas({
         }
       };
 
-      // ── Manual drawing (Solo)
+      // ── Manual drawing (Solo) — всичко персистентно се рисува в drawLayer
 
       const overCanvas = () =>
         p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height;
@@ -239,13 +279,13 @@ export function P5Canvas({
           lastY = p.mouseY;
           waveDist = 0;
         }
-        if (tool === 'CIRCLE' || tool === 'RECT') {
+        if (tool === 'LINE' || tool === 'CIRCLE' || tool === 'RECT') {
           isDrawing = true;
           shapeStartX = p.mouseX;
           shapeStartY = p.mouseY;
         }
         if (tool === 'BURST') {
-          drawBurst(p, p.mouseX, p.mouseY, color, size * 5);
+          drawBurstEffect(drawLayer, p.mouseX, p.mouseY, color, size * 5);
         }
       };
 
@@ -256,9 +296,10 @@ export function P5Canvas({
         const alpha = opacity * 2.55;
 
         if (tool === 'BRUSH') {
-          p.stroke(c.r, c.g, c.b, alpha);
-          p.strokeWeight(size);
-          p.line(lastX, lastY, p.mouseX, p.mouseY);
+          drawLayer.stroke(c.r, c.g, c.b, alpha);
+          drawLayer.strokeWeight(size);
+          drawLayer.strokeCap(p.ROUND);
+          drawLayer.line(lastX, lastY, p.mouseX, p.mouseY);
           lastX = p.mouseX;
           lastY = p.mouseY;
         } else if (tool === 'WAVE') {
@@ -270,17 +311,18 @@ export function P5Canvas({
             const wx = p.lerp(lastX, p.mouseX, t);
             const baseY = p.lerp(lastY, p.mouseY, t);
             const wy = baseY + Math.sin((waveDist + segLen * t) * 0.08) * 18;
-            p.noStroke();
-            p.fill(c.r, c.g, c.b, alpha);
-            p.ellipse(wx, wy, size * 0.5);
+            drawLayer.noStroke();
+            drawLayer.fill(c.r, c.g, c.b, alpha);
+            drawLayer.ellipse(wx, wy, size * 0.5);
           }
           waveDist += segLen;
           lastX = p.mouseX;
           lastY = p.mouseY;
         } else if (tool === 'ERASER') {
-          p.noStroke();
-          p.fill(10, 10, 15, 255);
-          p.ellipse(p.mouseX, p.mouseY, size * 2);
+          drawLayer.erase();
+          drawLayer.noStroke();
+          drawLayer.ellipse(p.mouseX, p.mouseY, size * 2);
+          drawLayer.noErase();
         }
       };
 
@@ -293,20 +335,25 @@ export function P5Canvas({
         const c = hexToRgb(color);
         const alpha = opacity * 2.55;
 
-        // CIRCLE и RECT се рисуват на release (click + drag → форма)
-        if (tool === 'CIRCLE') {
+        // LINE, CIRCLE и RECT се рисуват на release (click + drag → форма)
+        if (tool === 'LINE') {
+          drawLayer.stroke(c.r, c.g, c.b, alpha);
+          drawLayer.strokeWeight(size);
+          drawLayer.strokeCap(p.ROUND);
+          drawLayer.line(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
+        } else if (tool === 'CIRCLE') {
           const r = p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          p.noFill();
-          p.stroke(c.r, c.g, c.b, alpha);
-          p.strokeWeight(size * 0.4);
-          p.ellipse(shapeStartX, shapeStartY, r * 2);
+          drawLayer.noFill();
+          drawLayer.stroke(c.r, c.g, c.b, alpha);
+          drawLayer.strokeWeight(size * 0.4);
+          drawLayer.ellipse(shapeStartX, shapeStartY, r * 2);
         } else if (tool === 'RECT') {
-          p.noFill();
-          p.stroke(c.r, c.g, c.b, alpha);
-          p.strokeWeight(size * 0.4);
-          p.rectMode(p.CORNERS);
-          p.rect(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          p.rectMode(p.CORNER);
+          drawLayer.noFill();
+          drawLayer.stroke(c.r, c.g, c.b, alpha);
+          drawLayer.strokeWeight(size * 0.4);
+          drawLayer.rectMode(p.CORNERS);
+          drawLayer.rect(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
+          drawLayer.rectMode(p.CORNER);
         }
         isDrawing = false;
       };

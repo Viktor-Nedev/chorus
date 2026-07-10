@@ -4,6 +4,7 @@ import { VideoProcessor } from '../components/VideoProcessor';
 import { ParticipantsList } from '../components/HUD';
 import { PoemOverlay } from '../components/PoemOverlay';
 import { SaveModal } from '../components/SaveModal';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
@@ -19,7 +20,7 @@ function hslToRgb(h, s, l) {
 }
 
 // ── Lobby: nickname + create/join ──
-function Lobby({ onCreate, onJoin, joinError, navigate }) {
+function Lobby({ onCreate, onJoin, joinError, navigate, theme, toggleTheme }) {
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
   const [mode, setMode] = useState(null); // 'create' | 'join'
@@ -28,6 +29,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate }) {
 
   return (
     <div className="h-full w-full bg-ink flex items-center justify-center">
+      <ThemeToggle theme={theme} onToggle={toggleTheme} className="absolute top-4 right-4" />
       <div className="w-full max-w-sm mx-4 animate-slide-up">
         <button
           onClick={() => navigate('landing')}
@@ -94,7 +96,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate }) {
 }
 
 // ── Активна сесия ──
-function Session({ socket, navigate }) {
+function Session({ socket, navigate, theme, toggleTheme }) {
   const {
     sessionInfo,
     users,
@@ -111,6 +113,8 @@ function Session({ socket, navigate }) {
   const p5InstanceRef = useRef(null);
   const myAudioLevelRef = useRef(0);
   const nicknameRef = useRef(sessionInfo?.nickname);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   const { emotion, gesture, emotionRef, gestureRef, handPositionRef, detect } = useMediaPipe(
     videoRef,
@@ -227,6 +231,7 @@ function Session({ socket, navigate }) {
         baseColor={baseColor}
         usersRef={usersRef}
         myAudioLevelRef={myAudioLevelRef}
+        themeRef={themeRef}
         onSystemReady={onSystemReady}
       />
 
@@ -253,6 +258,7 @@ function Session({ socket, navigate }) {
         </button>
 
         <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           {sessionInfo?.isCreator && !sessionEnded && (
             <button
               onClick={endSession}
@@ -300,7 +306,7 @@ function Session({ socket, navigate }) {
   );
 }
 
-export function CollectiveCanvas({ navigate }) {
+export function CollectiveCanvas({ navigate, theme, toggleTheme }) {
   const socket = useSocket();
   const nicknameRef = useRef('');
 
@@ -320,6 +326,8 @@ export function CollectiveCanvas({ navigate }) {
         onJoin={handleJoin}
         joinError={socket.joinError}
         navigate={navigate}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
     );
   }
@@ -327,5 +335,5 @@ export function CollectiveCanvas({ navigate }) {
   // Подай nickname в sessionInfo за ParticipantsList
   socket.sessionInfo.nickname = nicknameRef.current;
 
-  return <Session socket={socket} navigate={navigate} />;
+  return <Session socket={socket} navigate={navigate} theme={theme} toggleTheme={toggleTheme} />;
 }

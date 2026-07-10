@@ -4,13 +4,16 @@ import { VideoProcessor } from '../components/VideoProcessor';
 import { EmotionSidebar } from '../components/HUD';
 import { SaveModal } from '../components/SaveModal';
 import { PoemOverlay } from '../components/PoemOverlay';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useVoiceCommands } from '../hooks/useVoiceCommands';
 
 const TOOLS = [
   { id: 'CHORUS', icon: '🎆', label: 'Chorus — particle brush' },
-  { id: 'BRUSH', icon: '✏️', label: 'Brush — classic line' },
+  { id: 'BRUSH', icon: '✏️', label: 'Brush — freehand line (persists)' },
+  { id: 'LINE', icon: '／', label: 'Line — straight stroke, click + drag' },
   { id: 'CIRCLE', icon: '○', label: 'Circle — click + drag' },
   { id: 'RECT', icon: '□', label: 'Rect — click + drag' },
   { id: 'BURST', icon: '✦', label: 'Burst — click to explode' },
@@ -18,9 +21,11 @@ const TOOLS = [
   { id: 'ERASER', icon: '⌫', label: 'Eraser' },
 ];
 
-const COLOR_TOOLS = new Set(['BRUSH', 'CIRCLE', 'RECT', 'BURST', 'WAVE']);
+const COLOR_TOOLS = new Set(['BRUSH', 'LINE', 'CIRCLE', 'RECT', 'BURST', 'WAVE']);
+const MIN_SIZE = 1;
+const MAX_SIZE = 50;
 
-export function SoloCanvas({ navigate }) {
+export function SoloCanvas({ navigate, theme, toggleTheme }) {
   const [title, setTitle] = useState(`Untitled — ${new Date().toLocaleDateString()}`);
   const [editingTitle, setEditingTitle] = useState(false);
 
@@ -43,9 +48,15 @@ export function SoloCanvas({ navigate }) {
   const [poemState, setPoemState] = useState(null); // { loading, poem }
   const [toast, setToast] = useState(null);
 
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+
   const videoRef = useRef(null);
   const systemRef = useRef(null); // ParticleSystem
   const p5InstanceRef = useRef(null);
+  const clearAllRef = useRef(null);
 
   const { emotion, gesture, emotionRef, gestureRef, handPositionRef, detect, ready } =
     useMediaPipe(videoRef, liveEnabled);
@@ -88,14 +99,33 @@ export function SoloCanvas({ navigate }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const onSystemReady = useCallback((system, p) => {
+  const onSystemReady = useCallback((system, p, api) => {
     systemRef.current = system;
     p5InstanceRef.current = p;
+    clearAllRef.current = api?.clearAll ?? null;
   }, []);
 
-  const handleClear = () => {
-    const p = p5InstanceRef.current;
-    if (p) p.background(10, 10, 15);
+  const handleClear = useCallback(() => {
+    clearAllRef.current?.();
+  }, []);
+
+  // ── Гласови команди — смяна на инструмент/цвят/размер, clear, save
+  const { supported: voiceSupported } = useVoiceCommands({
+    enabled: voiceEnabled,
+    onColor: setColor,
+    onTool: setTool,
+    onClear: handleClear,
+    onSave: () => setShowSaveModal(true),
+    onSizeChange: (delta) => setSize((s) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, s + delta))),
+    onFeedback: (msg) => showToast(msg),
+  });
+
+  const handleVoiceToggle = () => {
+    if (!voiceEnabled && !voiceSupported) {
+      showToast('Voice commands need Chrome/Edge — not supported in this browser');
+      return;
+    }
+    setVoiceEnabled((v) => !v);
   };
 
   // ── Save flow
@@ -186,6 +216,7 @@ export function SoloCanvas({ navigate }) {
         getAudioData={getAudioData}
         toolRef={toolRef}
         liveRef={liveRef}
+        themeRef={themeRef}
         onSystemReady={onSystemReady}
       />
 
@@ -221,6 +252,18 @@ export function SoloCanvas({ navigate }) {
         )}
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleVoiceToggle}
+            title="Toggle voice commands (say a color or tool name)"
+            className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+              voiceEnabled
+                ? 'border-red-500 bg-red-950/40 text-red-300'
+                : 'border-ink-line text-gray-300 hover:bg-ink-line/50'
+            }`}
+          >
+            {voiceEnabled ? '🎙 Listening…' : '🎙 Voice'}
+          </button>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
             onClick={handleClear}
             className="rounded-lg border border-ink-line px-3 py-1.5 text-xs text-gray-300 hover:bg-ink-line/50 transition"
@@ -335,9 +378,16 @@ export function SoloCanvas({ navigate }) {
       )}
 
       {/* Подсказка при изключен live */}
-      {!liveEnabled && (
+      {!liveEnabled && !voiceEnabled && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-gray-500 bg-ink-soft/70 border border-ink-line rounded-full px-4 py-1.5 backdrop-blur">
           Press 👁 to paint with your face and voice · {ready ? 'models ready' : 'models load on first use'}
+        </div>
+      )}
+
+      {/* Подсказка за гласови команди */}
+      {voiceEnabled && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-red-300 bg-ink-soft/70 border border-red-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
+          Say a color ("red", "червено"), a tool ("brush", "четка"), "bigger", "clear" or "save"
         </div>
       )}
 

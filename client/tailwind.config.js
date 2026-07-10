@@ -8,9 +8,18 @@ export default {
         body: ['Inter', 'sans-serif'],
       },
       colors: {
-        ink: '#0a0a0f',
-        'ink-soft': '#12121a',
-        'ink-line': '#232330',
+        ink: 'rgb(var(--c-ink) / <alpha-value>)',
+        'ink-soft': 'rgb(var(--c-ink-soft) / <alpha-value>)',
+        'ink-line': 'rgb(var(--c-ink-line) / <alpha-value>)',
+        white: 'rgb(var(--c-1) / <alpha-value>)',
+        gray: {
+          100: 'rgb(var(--c-1) / <alpha-value>)',
+          200: 'rgb(var(--c-1) / <alpha-value>)',
+          300: 'rgb(var(--c-2) / <alpha-value>)',
+          400: 'rgb(var(--c-2) / <alpha-value>)',
+          500: 'rgb(var(--c-3) / <alpha-value>)',
+          600: 'rgb(var(--c-3) / <alpha-value>)',
+        },
       },
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out',
