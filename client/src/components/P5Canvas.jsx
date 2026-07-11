@@ -77,6 +77,93 @@ function drawBurstEffect(layer, x, y, hexColor, radius) {
   }
 }
 
+// ── Hand-draw pen styles — рисуват върху постоянния drawLayer между две
+// последователни позиции на ръката (x1,y1) → (x2,y2).
+function drawHandStroke(layer, p, style, x1, y1, x2, y2, hexColor, size, opacityPct) {
+  const c = hexToRgb(hexColor);
+  const alpha = Math.max(0, Math.min(255, opacityPct * 2.55));
+
+  switch (style) {
+    case 'PEN': {
+      // Химикал — тънка, твърда, силно наситена линия
+      layer.stroke(c.r, c.g, c.b, Math.max(alpha, 210));
+      layer.strokeWeight(Math.max(1.5, size * 0.45));
+      layer.strokeCap(p.ROUND);
+      layer.line(x1, y1, x2, y2);
+      break;
+    }
+    case 'PENCIL': {
+      // Молив — зърнеста текстура от разпръснати точици по пътя
+      const steps = Math.max(2, Math.ceil(p.dist(x1, y1, x2, y2) / 2));
+      layer.noStroke();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const gx = p.lerp(x1, x2, t) + (Math.random() - 0.5) * size * 0.25;
+        const gy = p.lerp(y1, y2, t) + (Math.random() - 0.5) * size * 0.25;
+        layer.fill(c.r, c.g, c.b, alpha * (0.35 + Math.random() * 0.35));
+        layer.ellipse(gx, gy, Math.max(1, size * 0.35));
+      }
+      break;
+    }
+    case 'MARKER': {
+      // Маркер — дебел плосък щрих, наслагва се като мастило (multiply blend)
+      layer.blendMode(p.MULTIPLY);
+      layer.stroke(c.r, c.g, c.b, Math.min(alpha, 190));
+      layer.strokeWeight(Math.max(4, size * 1.6));
+      layer.strokeCap(p.SQUARE);
+      layer.line(x1, y1, x2, y2);
+      layer.blendMode(p.BLEND);
+      break;
+    }
+    case 'CALLIGRAPHY': {
+      // Калиграфско перо — дебелината зависи от посоката на движение
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const nib = Math.PI / 4;
+      const w = Math.max(1.5, size * (0.25 + 0.9 * Math.abs(Math.sin(angle - nib))));
+      layer.stroke(c.r, c.g, c.b, alpha);
+      layer.strokeWeight(w);
+      layer.strokeCap(p.PROJECT);
+      layer.line(x1, y1, x2, y2);
+      break;
+    }
+    case 'SPRAY': {
+      // Спрей — разпръснати частици около текущата точка
+      const count = 6;
+      const radius = size * 1.3;
+      layer.noStroke();
+      for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const r = Math.random() * radius;
+        layer.fill(c.r, c.g, c.b, alpha * (0.3 + Math.random() * 0.5));
+        layer.ellipse(x2 + Math.cos(ang) * r, y2 + Math.sin(ang) * r, Math.random() * 3 + 1);
+      }
+      break;
+    }
+    case 'NEON': {
+      // Неон — широко меко сияние + ярка бяла сърцевина + плътен цветен кор
+      layer.strokeCap(p.ROUND);
+      layer.stroke(c.r, c.g, c.b, alpha * 0.25);
+      layer.strokeWeight(size * 2.4);
+      layer.line(x1, y1, x2, y2);
+      layer.stroke(255, 255, 255, alpha * 0.5);
+      layer.strokeWeight(Math.max(1, size * 0.35));
+      layer.line(x1, y1, x2, y2);
+      layer.stroke(c.r, c.g, c.b, alpha);
+      layer.strokeWeight(Math.max(1, size * 0.5));
+      layer.line(x1, y1, x2, y2);
+      break;
+    }
+    case 'BRUSH':
+    default: {
+      // Нормална четка — мек кръгъл щрих
+      layer.stroke(c.r, c.g, c.b, alpha);
+      layer.strokeWeight(size);
+      layer.strokeCap(p.ROUND);
+      layer.line(x1, y1, x2, y2);
+    }
+  }
+}
+
 /**
  * P5Canvas — един компонент за двата режима.
  *
@@ -93,7 +180,7 @@ function drawBurstEffect(layer, x, y, hexColor, radius) {
  *  - mode: 'solo' | 'collective'
  *  - emotionRef, gestureRef, handPositionRef  (от useMediaPipe)
  *  - getAudioData()                            (от useAudio)
- *  - toolRef: { tool, color, size, opacity }   (Solo; ref обект)
+ *  - toolRef: { tool, color, size, opacity, penStyle, handPaused }  (Solo; ref обект)
  *  - liveRef: { camera, hands }                (Solo; кои live входа са активни)
  *  - baseColor: {r,g,b}                        (цвят на частиците по подразбиране)
  *  - usersRef                                  (Collective; чужди потребители)
@@ -139,6 +226,8 @@ export function P5Canvas({
     let shapeStartY = 0;
     let waveDist = 0;
     let drawLayer = null; // p5.Graphics — постоянен слой за ръчно рисуване
+    let lastHandX = null; // последна позиция на ръката, докато HAND tool рисува
+    let lastHandY = null;
 
     const bg = () => (themeRef?.current === 'light' ? CANVAS_BG.light : CANVAS_BG.dark);
 
@@ -213,6 +302,39 @@ export function P5Canvas({
 
         particleSystem.update(audio, EMOTION_CONFIGS[emotion], { gesture });
 
+        // ── HAND DRAW: рисуване с движението на ръката върху постоянния
+        // слой. OPEN_PALM (пет пръста) или гласова пауза вдигат "перото" —
+        // ръката може да се мести свободно без да рисува; следващото
+        // затваряне на дланта продължава рисуването от новото място.
+        let handDrawState = null; // { hx, hy, canDraw } — за курсора, рисуван по-долу
+        if (mode === 'solo' && tool?.tool === 'HAND' && drawLayer) {
+          const hx = handPos.x * p.width;
+          const hy = handPos.y * p.height;
+          const canDraw = gesture !== 'NO_HAND' && gesture !== 'OPEN_PALM' && !tool.handPaused;
+          if (gesture !== 'NO_HAND') handDrawState = { hx, hy, canDraw };
+
+          if (canDraw) {
+            if (lastHandX === null) {
+              lastHandX = hx;
+              lastHandY = hy;
+            } else {
+              drawHandStroke(
+                drawLayer, p, tool.penStyle || 'BRUSH',
+                lastHandX, lastHandY, hx, hy,
+                tool.color, tool.size, tool.opacity
+              );
+              lastHandX = hx;
+              lastHandY = hy;
+            }
+          } else {
+            lastHandX = null;
+            lastHandY = null;
+          }
+        } else {
+          lastHandX = null;
+          lastHandY = null;
+        }
+
         // ── Постоянният слой за ръчно рисуване — рисува се всеки кадър
         // на пълна плътност, така че НЕ избледнява със фосилния ефект
         if (drawLayer) p.image(drawLayer, 0, 0);
@@ -253,6 +375,19 @@ export function P5Canvas({
             }
             p.pop();
           }
+        }
+
+        // ── Hand-draw cursor — жив пръстен на позицията на ръката, рисуван
+        // директно в p (не в drawLayer), затова естествено избледнява и
+        // никога не остава запечатан в картината.
+        if (handDrawState) {
+          const { hx, hy, canDraw } = handDrawState;
+          p.push();
+          p.noFill();
+          p.stroke(canDraw ? 100 : 230, canDraw ? 255 : 70, canDraw ? 140 : 70, 220);
+          p.strokeWeight(2);
+          p.ellipse(hx, hy, Math.max(18, tool.size * 1.5));
+          p.pop();
         }
 
         // ── Eraser preview

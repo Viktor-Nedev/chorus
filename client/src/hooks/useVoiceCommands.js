@@ -16,6 +16,7 @@ const COLOR_COMMANDS = [
 
 const TOOL_COMMANDS = [
   [['частици', 'частица', 'хор', 'chorus'], 'CHORUS'],
+  [['ръка', 'ръчно рисуване', 'hand draw', 'hand'], 'HAND'],
   [['линия', 'line'], 'LINE'],
   [['четка', 'brush'], 'BRUSH'],
   [['кръг', 'кръгче', 'circle'], 'CIRCLE'],
@@ -26,7 +27,7 @@ const TOOL_COMMANDS = [
 ];
 
 const TOOL_LABELS = {
-  CHORUS: 'Chorus', LINE: 'Line', BRUSH: 'Brush', CIRCLE: 'Circle',
+  CHORUS: 'Chorus', HAND: 'Hand Draw', LINE: 'Line', BRUSH: 'Brush', CIRCLE: 'Circle',
   RECT: 'Rectangle', BURST: 'Burst', WAVE: 'Wave', ERASER: 'Eraser',
 };
 
@@ -39,11 +40,14 @@ function findMatch(text, table) {
 
 /**
  * Гласови команди чрез Web Speech API (SpeechRecognition).
- * Поддържа команди за смяна на инструмент, цвят, размер, clear и save.
+ * Поддържа команди за смяна на инструмент, цвят, размер, clear, save,
+ * и пауза/продължаване на рисуването с ръка ("stop" / "draw").
  *
- * handlers: { onColor(hex), onTool(toolId), onClear(), onSave(), onSizeChange(delta) }
+ * handlers: { onColor(hex), onTool(toolId), onClear(), onSave(), onSizeChange(delta), onPause(), onResume() }
  */
-export function useVoiceCommands({ onColor, onTool, onClear, onSave, onSizeChange, onFeedback, enabled }) {
+export function useVoiceCommands({
+  onColor, onTool, onClear, onSave, onSizeChange, onPause, onResume, onFeedback, enabled,
+}) {
   const [listening, setListening] = useState(false);
   const [supported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -53,7 +57,7 @@ export function useVoiceCommands({ onColor, onTool, onClear, onSave, onSizeChang
   enabledRef.current = enabled;
 
   const handlersRef = useRef({});
-  handlersRef.current = { onColor, onTool, onClear, onSave, onSizeChange, onFeedback };
+  handlersRef.current = { onColor, onTool, onClear, onSave, onSizeChange, onPause, onResume, onFeedback };
 
   const processTranscript = useCallback((raw) => {
     const t = raw.toLowerCase().trim();
@@ -81,6 +85,16 @@ export function useVoiceCommands({ onColor, onTool, onClear, onSave, onSizeChang
     if (/(по-малък|по малък|намали|smaller|decrease)/.test(t)) {
       handlersRef.current.onSizeChange?.(-4);
       handlersRef.current.onFeedback?.('🎙 Size decreased');
+      return;
+    }
+    if (/(спри|стоп|пауза|stop|pause)/.test(t)) {
+      handlersRef.current.onPause?.();
+      handlersRef.current.onFeedback?.('🎙 Hand drawing paused');
+      return;
+    }
+    if (/(продължи|рисувай|старт|start|resume|continue)/.test(t)) {
+      handlersRef.current.onResume?.();
+      handlersRef.current.onFeedback?.('🎙 Hand drawing resumed');
       return;
     }
     if (/(изчисти|изтрий всичко|clear)/.test(t)) {

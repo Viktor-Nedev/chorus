@@ -12,6 +12,7 @@ import { useVoiceCommands } from '../hooks/useVoiceCommands';
 
 const TOOLS = [
   { id: 'CHORUS', icon: '🎆', label: 'Chorus — particle brush' },
+  { id: 'HAND', icon: '🖐️', label: 'Hand Draw — draw with your gesture (open palm = pause)' },
   { id: 'BRUSH', icon: '✏️', label: 'Brush — freehand line (persists)' },
   { id: 'LINE', icon: '／', label: 'Line — straight stroke, click + drag' },
   { id: 'CIRCLE', icon: '○', label: 'Circle — click + drag' },
@@ -21,7 +22,17 @@ const TOOLS = [
   { id: 'ERASER', icon: '⌫', label: 'Eraser' },
 ];
 
-const COLOR_TOOLS = new Set(['BRUSH', 'LINE', 'CIRCLE', 'RECT', 'BURST', 'WAVE']);
+const PEN_STYLES = [
+  { id: 'BRUSH', icon: '🖌️', label: 'Brush — soft round stroke' },
+  { id: 'PEN', icon: '🖊️', label: 'Pen — thin, crisp, solid ink' },
+  { id: 'PENCIL', icon: '✏️', label: 'Pencil — grainy graphite texture' },
+  { id: 'MARKER', icon: '🖍️', label: 'Marker — thick flat ink, overlaps darker' },
+  { id: 'CALLIGRAPHY', icon: '🖋️', label: 'Calligraphy — width follows direction' },
+  { id: 'SPRAY', icon: '💨', label: 'Spray — scattered paint particles' },
+  { id: 'NEON', icon: '✨', label: 'Neon — glowing tube of light' },
+];
+
+const COLOR_TOOLS = new Set(['HAND', 'BRUSH', 'LINE', 'CIRCLE', 'RECT', 'BURST', 'WAVE']);
 const MIN_SIZE = 1;
 const MAX_SIZE = 50;
 
@@ -34,8 +45,12 @@ export function SoloCanvas({ navigate, theme, toggleTheme }) {
   const [color, setColor] = useState('#a78bfa');
   const [size, setSize] = useState(10);
   const [opacity, setOpacity] = useState(100);
-  const toolRef = useRef({ tool: 'CHORUS', color: '#a78bfa', size: 10, opacity: 100 });
-  toolRef.current = { tool, color, size, opacity };
+  const [penStyle, setPenStyle] = useState('BRUSH');
+  const [handPaused, setHandPaused] = useState(false);
+  const toolRef = useRef({
+    tool: 'CHORUS', color: '#a78bfa', size: 10, opacity: 100, penStyle: 'BRUSH', handPaused: false,
+  });
+  toolRef.current = { tool, color, size, opacity, penStyle, handPaused };
 
   // Live входове
   const [liveEnabled, setLiveEnabled] = useState(false);
@@ -109,7 +124,8 @@ export function SoloCanvas({ navigate, theme, toggleTheme }) {
     clearAllRef.current?.();
   }, []);
 
-  // ── Гласови команди — смяна на инструмент/цвят/размер, clear, save
+  // ── Гласови команди — смяна на инструмент/цвят/размер, clear, save,
+  // и пауза/продължаване на рисуването с ръка
   const { supported: voiceSupported } = useVoiceCommands({
     enabled: voiceEnabled,
     onColor: setColor,
@@ -117,6 +133,8 @@ export function SoloCanvas({ navigate, theme, toggleTheme }) {
     onClear: handleClear,
     onSave: () => setShowSaveModal(true),
     onSizeChange: (delta) => setSize((s) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, s + delta))),
+    onPause: () => setHandPaused(true),
+    onResume: () => setHandPaused(false),
     onFeedback: (msg) => showToast(msg),
   });
 
@@ -362,7 +380,41 @@ export function SoloCanvas({ navigate, theme, toggleTheme }) {
         >
           🖐
         </button>
+
+        {tool === 'HAND' && (
+          <button
+            onClick={() => setHandPaused((v) => !v)}
+            title={handPaused ? 'Resume hand drawing' : 'Pause hand drawing (or open palm / say "stop")'}
+            className={`w-11 h-11 rounded-lg flex items-center justify-center text-lg transition ${
+              handPaused
+                ? 'bg-red-600/30 border border-red-500 text-white'
+                : 'bg-green-600/20 border border-green-600/60 text-green-300'
+            }`}
+          >
+            {handPaused ? '▶' : '⏸'}
+          </button>
+        )}
       </aside>
+
+      {/* ── PEN STYLES (за Hand Draw) ── */}
+      {tool === 'HAND' && (
+        <aside className="absolute left-[76px] top-1/2 -translate-y-1/2 z-20 w-[52px] rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-1 animate-fade-in">
+          {PEN_STYLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setPenStyle(s.id)}
+              title={s.label}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
+                penStyle === s.id
+                  ? 'bg-cyan-600/30 border border-cyan-500 text-white'
+                  : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
+              }`}
+            >
+              {s.icon}
+            </button>
+          ))}
+        </aside>
+      )}
 
       {/* ── EMOTION SIDEBAR (вдясно) ── */}
       {liveEnabled && (
@@ -384,10 +436,24 @@ export function SoloCanvas({ navigate, theme, toggleTheme }) {
         </div>
       )}
 
+      {/* Подсказка специално за Hand Draw, ако камерата/ръката са изключени */}
+      {tool === 'HAND' && (!liveEnabled || !handsEnabled) && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-cyan-300 bg-ink-soft/70 border border-cyan-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
+          Enable 👁 and 🖐 to draw with your hand
+        </div>
+      )}
+
+      {/* Подсказка за Hand Draw, докато е активен и live-ready */}
+      {tool === 'HAND' && liveEnabled && handsEnabled && !voiceEnabled && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-cyan-300 bg-ink-soft/70 border border-cyan-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
+          Move your hand to paint · open palm (✋) or "stop" to lift the pen · close it again to resume
+        </div>
+      )}
+
       {/* Подсказка за гласови команди */}
       {voiceEnabled && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-red-300 bg-ink-soft/70 border border-red-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
-          Say a color ("red", "червено"), a tool ("brush", "четка"), "bigger", "clear" or "save"
+          Say a color, a tool, "bigger", "clear", "save" — or "stop"/"draw" to pause hand drawing
         </div>
       )}
 
