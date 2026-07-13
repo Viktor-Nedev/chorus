@@ -35,6 +35,15 @@ export function Gallery({ navigate, theme, toggleTheme }) {
     }
   };
 
+  const handleEdit = async (art) => {
+    try {
+      const full = await fetchArtwork(art.id);
+      navigate('solo', full);
+    } catch {
+      navigate('solo', art);
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       await deleteArtwork(id);
@@ -126,6 +135,7 @@ export function Gallery({ navigate, theme, toggleTheme }) {
               key={art.id}
               artwork={art}
               onOpen={() => openArtwork(art)}
+              onEdit={() => handleEdit(art)}
               onDelete={() => setConfirmDelete(art)}
             />
           ))}
@@ -188,6 +198,14 @@ export function Gallery({ navigate, theme, toggleTheme }) {
                 >
                   Download
                 </a>
+                {selected.mode === 'solo' && (
+                  <button
+                    onClick={() => navigate('solo', selected)}
+                    className="rounded-lg border border-cyan-700 bg-cyan-950/40 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-900/40 transition"
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   onClick={() => setSelected(null)}
                   className="rounded-lg border border-ink-line px-4 py-2 text-sm text-gray-300 hover:bg-ink-line/50 transition"

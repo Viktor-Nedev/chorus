@@ -1,4 +1,4 @@
-export function GalleryCard({ artwork, onOpen, onDelete }) {
+export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
   const date = new Date(artwork.createdAt).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -52,6 +52,17 @@ export function GalleryCard({ artwork, onOpen, onDelete }) {
         >
           Download
         </a>
+        {artwork.mode === 'solo' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit?.();
+            }}
+            className="flex-1 py-2 text-[11px] text-cyan-400/80 hover:text-cyan-300 hover:bg-ink-line/40 transition"
+          >
+            Edit
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

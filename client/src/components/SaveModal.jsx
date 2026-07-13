@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-export function SaveModal({ defaultTitle, mode, onSave, onCancel, saving }) {
+export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCancel, saving }) {
   const [title, setTitle] = useState(defaultTitle);
-  const [author, setAuthor] = useState('');
+  const [author, setAuthor] = useState(defaultAuthor);
   const [description, setDescription] = useState('');
   const [generatePoem, setGeneratePoem] = useState(true);
 
