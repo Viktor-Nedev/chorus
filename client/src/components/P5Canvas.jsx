@@ -3,11 +3,11 @@ import p5 from 'p5';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { EMOTION_CONFIGS } from '../constants/emotions';
 import { applySwarmRules } from '../engine/swarmRules';
-import { CANVAS_BG } from '../hooks/useTheme';
 import { createUndoStack } from '../engine/undoStack';
 import { floodFill } from '../engine/floodFill';
 
 const FILL_TOLERANCE = 30;
+const CANVAS_BG = { r: 5, g: 5, b: 5 }; // #050505 — тъмна тема, единствената
 
 // Помощни функции за рисуване
 
@@ -222,7 +222,6 @@ function drawHandStroke(layer, p, style, x1, y1, x2, y2, hexColor, size, opacity
  *  - baseColor: {r,g,b}                        (цвят на частиците по подразбиране)
  *  - usersRef                                  (Collective; чужди потребители)
  *  - myAudioLevelRef                           (Collective)
- *  - themeRef                                  (ref 'dark' | 'light' — за фона на canvas-а)
  *  - onSystemReady(system, p5instance, api)    (callback за export/clear/undo/... достъп)
  *  - onTextPlace(px,py,screenX,screenY)        (Solo; TEXT tool кликна върху canvas-а)
  *  - onColorPicked(hex)                        (Solo; EYEDROPPER взе цвят)
@@ -238,7 +237,6 @@ export function P5Canvas({
   baseColor = { r: 150, g: 100, b: 255 },
   usersRef,
   myAudioLevelRef,
-  themeRef,
   onSystemReady,
   onTextPlace,
   onColorPicked,
@@ -278,7 +276,7 @@ export function P5Canvas({
 
     const undo = createUndoStack(20);
 
-    const bg = () => (themeRef?.current === 'light' ? CANVAS_BG.light : CANVAS_BG.dark);
+    const bg = () => CANVAS_BG;
     const mirroredX = (x) => drawLayer.width - x;
     const pushUndoSnapshot = () => undo.push(drawLayer.get());
 

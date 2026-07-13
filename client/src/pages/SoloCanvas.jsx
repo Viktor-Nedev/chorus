@@ -4,7 +4,6 @@ import { VideoProcessor } from '../components/VideoProcessor';
 import { EmotionSidebar } from '../components/HUD';
 import { SaveModal } from '../components/SaveModal';
 import { PoemOverlay } from '../components/PoemOverlay';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
 import { useArtworkStore } from '../hooks/useArtworkStore';
@@ -55,7 +54,7 @@ const MAX_ZOOM = 3;
 const headerIconBtn =
   'flex items-center justify-center rounded-lg border border-ink-line bg-ink-soft/70 backdrop-blur w-8 h-8 text-sm text-gray-300 hover:text-white hover:border-gray-500 transition';
 
-export function SoloCanvas({ navigate, theme, toggleTheme, artworkToEdit, onArtworkConsumed }) {
+export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [title, setTitle] = useState(`Untitled — ${new Date().toLocaleDateString()}`);
   const [authorDefault, setAuthorDefault] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -90,9 +89,6 @@ export function SoloCanvas({ navigate, theme, toggleTheme, artworkToEdit, onArtw
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [poemState, setPoemState] = useState(null); // { loading, poem }
   const [toast, setToast] = useState(null);
-
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
 
   const [voiceEnabled, setVoiceEnabled] = useState(false);
 
@@ -394,7 +390,6 @@ export function SoloCanvas({ navigate, theme, toggleTheme, artworkToEdit, onArtw
             getAudioData={getAudioData}
             toolRef={toolRef}
             liveRef={liveRef}
-            themeRef={themeRef}
             onSystemReady={onSystemReady}
             onTextPlace={handleTextPlace}
             onColorPicked={handleColorPicked}
@@ -485,7 +480,6 @@ export function SoloCanvas({ navigate, theme, toggleTheme, artworkToEdit, onArtw
           >
             {voiceEnabled ? '🎙 Listening…' : '🎙 Voice'}
           </button>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
           {/* Destructive / export */}

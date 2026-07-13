@@ -4,14 +4,16 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Space Grotesk"', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+        display: ['"Neue Machina"', 'Chillax', 'sans-serif'],
+        body: ['"Cabinet Grotesk"', 'sans-serif'],
       },
       colors: {
         ink: 'rgb(var(--c-ink) / <alpha-value>)',
         'ink-soft': 'rgb(var(--c-ink-soft) / <alpha-value>)',
         'ink-line': 'rgb(var(--c-ink-line) / <alpha-value>)',
         white: 'rgb(var(--c-1) / <alpha-value>)',
+        'accent-cyan': 'rgb(var(--accent-cyan) / <alpha-value>)',
+        'accent-violet': 'rgb(var(--accent-violet) / <alpha-value>)',
         gray: {
           100: 'rgb(var(--c-1) / <alpha-value>)',
           200: 'rgb(var(--c-1) / <alpha-value>)',

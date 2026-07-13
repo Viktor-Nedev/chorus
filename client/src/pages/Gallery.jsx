@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 
-export function Gallery({ navigate, theme, toggleTheme }) {
+export function Gallery({ navigate }) {
   const { fetchGallery, fetchArtwork, deleteArtwork, loading } = useArtworkStore();
   const [artworks, setArtworks] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'solo' | 'collective'
@@ -64,39 +63,43 @@ export function Gallery({ navigate, theme, toggleTheme }) {
 
   return (
     <div className="h-full w-full bg-ink overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => navigate('landing')}
-            className="text-sm text-gray-400 hover:text-white transition"
-          >
-            ← Back
-          </button>
-          <h1 className="font-display text-2xl text-white tracking-widest">GALLERY</h1>
+      <div className="max-w-6xl mx-auto px-6 md:px-10 py-12">
+        <button
+          onClick={() => navigate('landing')}
+          className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
+        >
+          ← Back
+        </button>
 
-          <div className="ml-auto flex items-center gap-2 text-xs">
+        <div className="mt-6 mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <h1
+            className="font-display font-extrabold text-white leading-none tracking-tight"
+            style={{ fontSize: 'clamp(3rem, 8vw, 6.5rem)' }}
+          >
+            ARCHIVE
+          </h1>
+
+          <div className="flex items-center gap-6 text-xs pb-2">
             {['all', 'solo', 'collective'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`rounded-full px-3 py-1 border transition capitalize ${
+                className={`uppercase tracking-[0.2em] pb-1 border-b transition ${
                   filter === f
-                    ? 'border-violet-500 bg-violet-950/40 text-white'
-                    : 'border-ink-line text-gray-400 hover:text-white'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
                 }`}
               >
                 {f}
               </button>
             ))}
-            <span className="w-px h-4 bg-ink-line mx-1" />
+            <span className="w-px h-4 bg-ink-line" />
             <button
               onClick={() => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
-              className="rounded-full px-3 py-1 border border-ink-line text-gray-400 hover:text-white transition capitalize"
+              className="uppercase tracking-[0.2em] text-gray-500 hover:text-gray-300 transition"
             >
               {sort} ↕
             </button>
-            <span className="w-px h-4 bg-ink-line mx-1" />
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
 
@@ -185,7 +188,7 @@ export function Gallery({ navigate, theme, toggleTheme }) {
               )}
 
               {selected.poem && (
-                <pre className="mt-5 whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-200 border-l-2 border-violet-700 pl-4">
+                <pre className="mt-5 whitespace-pre-wrap font-body italic text-sm leading-relaxed text-gray-200 border-l border-accent-violet/60 pl-5">
                   {selected.poem}
                 </pre>
               )}

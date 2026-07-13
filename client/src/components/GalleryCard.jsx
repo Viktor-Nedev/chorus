@@ -6,14 +6,14 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
   });
 
   return (
-    <div className="group rounded-xl bg-ink-soft border border-ink-line overflow-hidden hover:border-violet-500/50 transition animate-fade-in">
+    <div className="energy-border group rounded-xl bg-ink-soft/60 border border-ink-line overflow-hidden transition-colors duration-500 animate-fade-in">
       <button onClick={onOpen} className="block w-full text-left">
         <div className="aspect-video bg-ink overflow-hidden">
           {artwork.imageData ? (
             <img
               src={artwork.imageData}
               alt={artwork.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+              className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl">
@@ -21,23 +21,23 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
             </div>
           )}
         </div>
-        <div className="p-4">
-          <div className="flex items-center gap-2 mb-1">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-2">
             <span
-              className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                artwork.mode === 'collective'
-                  ? 'bg-cyan-950 text-cyan-400'
-                  : 'bg-violet-950 text-violet-400'
+              className={`text-[9px] uppercase tracking-[0.25em] ${
+                artwork.mode === 'collective' ? 'text-accent-cyan/80' : 'text-accent-violet/80'
               }`}
             >
               {artwork.mode}
             </span>
-            <span className="text-[10px] text-gray-500">{date}</span>
+            <span className="text-[10px] text-gray-600">{date}</span>
           </div>
-          <h3 className="font-display text-white text-sm truncate">{artwork.title}</h3>
-          <p className="text-xs text-gray-500 truncate">by {artwork.author}</p>
+          <h3 className="font-display font-extrabold text-white text-base truncate">
+            {artwork.title}
+          </h3>
+          <p className="text-xs text-gray-500 truncate mt-0.5">by {artwork.author}</p>
           {artwork.poem && (
-            <p className="mt-2 text-[11px] text-gray-400 italic line-clamp-2 leading-snug">
+            <p className="mt-3 text-[11px] text-gray-500 italic line-clamp-2 leading-snug">
               {artwork.poem}
             </p>
           )}
@@ -48,7 +48,7 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
           href={artwork.imageData}
           download={`${artwork.title || 'chorus'}.png`}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 py-2 text-center text-[11px] text-gray-400 hover:text-white hover:bg-ink-line/40 transition"
+          className="flex-1 py-2.5 text-center text-[10px] uppercase tracking-[0.2em] text-gray-500 hover:text-white hover:bg-ink-line/40 transition"
         >
           Download
         </a>
@@ -58,7 +58,7 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
               e.stopPropagation();
               onEdit?.();
             }}
-            className="flex-1 py-2 text-[11px] text-cyan-400/80 hover:text-cyan-300 hover:bg-ink-line/40 transition"
+            className="flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] text-accent-cyan/70 hover:text-accent-cyan hover:bg-ink-line/40 transition"
           >
             Edit
           </button>
@@ -68,7 +68,7 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
             e.stopPropagation();
             onDelete();
           }}
-          className="flex-1 py-2 text-[11px] text-gray-500 hover:text-red-400 hover:bg-ink-line/40 transition"
+          className="flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] text-gray-600 hover:text-red-400 hover:bg-ink-line/40 transition"
         >
           Delete
         </button>

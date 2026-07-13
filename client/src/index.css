@@ -2,24 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Dark theme (default) */
-  --c-ink: 10 10 15;
-  --c-ink-soft: 18 18 26;
-  --c-ink-line: 35 35 48;
-  --c-1: 232 232 240;
-  --c-2: 156 163 175;
-  --c-3: 107 114 128;
+/* ─── Neue Machina (self-hosted, PP free license w/ attribution).
+   Ако woff2 файловете липсват, стекът пада към Chillax (Fontshare CDN). ─── */
+@font-face {
+  font-family: 'Neue Machina';
+  src: url('/fonts/NeueMachina-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Neue Machina';
+  src: url('/fonts/NeueMachina-Ultrabold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
 }
 
-:root.light {
-  /* Light theme */
-  --c-ink: 245 245 250;
-  --c-ink-soft: 255 255 255;
-  --c-ink-line: 224 224 234;
-  --c-1: 24 24 32;
-  --c-2: 82 82 99;
-  --c-3: 122 122 140;
+:root {
+  /* Deep-space installation palette — dark only */
+  --c-ink: 5 5 5; /* #050505 deep space black */
+  --c-ink-soft: 12 12 14;
+  --c-ink-line: 30 30 34;
+  --c-1: 245 245 245; /* #F5F5F5 soft white */
+  --c-2: 217 217 217; /* #D9D9D9 silver mist */
+  --c-3: 130 130 138;
+  --accent-cyan: 125 249 255; /* plasma cyan */
+  --accent-violet: 139 123 247; /* ethereal violet */
 }
 
 html,
@@ -29,9 +36,8 @@ body,
   margin: 0;
   background: rgb(var(--c-ink));
   color: rgb(var(--c-1));
-  font-family: 'Inter', sans-serif;
+  font-family: 'Cabinet Grotesk', sans-serif;
   overflow: hidden;
-  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 ::-webkit-scrollbar {
@@ -49,7 +55,105 @@ body,
   background: rgb(var(--c-3) / 0.5);
 }
 
-/* ─── Landing page particles: pure CSS, no JS ─── */
+/* ─── Film grain overlay — фиксирано, безплатен "expensive" ефект ─── */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ─── Custom cursor (активен само на Landing/Gallery — не на платната) ─── */
+.cursor-none-zone,
+.cursor-none-zone * {
+  cursor: none !important;
+}
+.custom-cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 200;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgb(var(--c-1));
+  pointer-events: none;
+}
+.custom-cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 200;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--c-2) / 0.55);
+  pointer-events: none;
+  transition: width 0.25s ease, height 0.25s ease, margin 0.25s ease, border-color 0.25s ease;
+}
+.custom-cursor-ring.is-hover {
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-color: rgb(var(--accent-cyan) / 0.8);
+}
+.custom-cursor-ring.is-down {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-color: rgb(var(--accent-cyan));
+}
+
+/* ─── Energy border — въртяща се conic рамка за панели/карти ─── */
+@property --spin {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.energy-border {
+  position: relative;
+}
+.energy-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--spin),
+    transparent 0%,
+    rgb(var(--c-2) / 0.05) 20%,
+    rgb(var(--accent-cyan) / 0.55) 38%,
+    rgb(var(--c-1) / 0.7) 50%,
+    rgb(var(--accent-violet) / 0.55) 62%,
+    rgb(var(--c-2) / 0.05) 80%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  animation: spin-border 4.5s linear infinite paused;
+  pointer-events: none;
+}
+.energy-border:hover::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+@keyframes spin-border {
+  to {
+    --spin: 360deg;
+  }
+}
+
+/* ─── Landing/Transition particles: pure CSS, no JS ─── */
 .particle-field {
   position: absolute;
   inset: 0;
@@ -96,6 +200,37 @@ body,
   animation: pulse-glow 3s ease-in-out infinite;
 }
 
+/* ─── Transition veil sweep ─── */
+.veil-in {
+  animation: veil-in 0.32s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+.veil-out {
+  animation: veil-out 0.36s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+@keyframes veil-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes veil-out {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+/* ─── Headline char reveal (Landing) ─── */
+.char-reveal {
+  display: inline-block;
+  transform: translateY(110%);
+  opacity: 0;
+}
+
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -111,7 +246,7 @@ input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   margin-top: -5px;
-  background: #a78bfa;
+  background: rgb(var(--accent-violet));
   height: 14px;
   width: 14px;
   border-radius: 50%;
