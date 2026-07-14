@@ -3,6 +3,7 @@ import { Landing } from './pages/Landing';
 import { SoloCanvas } from './pages/SoloCanvas';
 import { CollectiveCanvas } from './pages/CollectiveCanvas';
 import { Gallery } from './pages/Gallery';
+import { MoodCheck } from './pages/MoodCheck';
 import { TransitionVeil } from './components/TransitionVeil';
 import { Cursor } from './components/Cursor';
 
@@ -11,7 +12,7 @@ const VEIL_OUT_MS = 380;
 
 export default function App() {
   const [screen, setScreen] = useState('landing');
-  // 'landing' | 'solo' | 'collective' | 'gallery'
+  // 'landing' | 'solo' | 'collective' | 'gallery' | 'moodcheck'
   const [editArtwork, setEditArtwork] = useState(null);
   const [veilPhase, setVeilPhase] = useState(null); // null | 'in' | 'out'
   const transitioningRef = useRef(false);
@@ -49,6 +50,7 @@ export default function App() {
       )}
       {screen === 'collective' && <CollectiveCanvas navigate={navigate} />}
       {screen === 'gallery' && <Gallery navigate={navigate} />}
+      {screen === 'moodcheck' && <MoodCheck navigate={navigate} />}
 
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />

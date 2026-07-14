@@ -71,7 +71,7 @@ router.post('/', async (req, res) => {
       poem: String(poem || '').slice(0, 2000),
       duration: Number(duration) || 0,
       totalUsers: Number(totalUsers) || undefined,
-      mode: mode === 'collective' ? 'collective' : 'solo',
+      mode: ['collective', 'moodcheck'].includes(mode) ? mode : 'solo',
       createdAt: new Date().toISOString(),
     };
 

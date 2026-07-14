@@ -80,7 +80,7 @@ export function Gallery({ navigate }) {
           </h1>
 
           <div className="flex items-center gap-6 text-xs pb-2">
-            {['all', 'solo', 'collective'].map((f) => (
+            {['all', 'solo', 'collective', 'moodcheck'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -176,10 +176,12 @@ export function Gallery({ navigate }) {
                   className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded shrink-0 ${
                     selected.mode === 'collective'
                       ? 'bg-cyan-950 text-cyan-400'
-                      : 'bg-violet-950 text-violet-400'
+                      : selected.mode === 'moodcheck'
+                        ? 'bg-yellow-950 text-yellow-400'
+                        : 'bg-violet-950 text-violet-400'
                   }`}
                 >
-                  {selected.mode}
+                  {selected.mode === 'moodcheck' ? 'mood check' : selected.mode}
                 </span>
               </div>
 

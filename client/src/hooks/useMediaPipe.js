@@ -20,6 +20,12 @@ export function useMediaPipe(videoRef, enabled = true) {
   const gestureRef = useRef('NO_HAND');
   const handPositionRef = useRef({ x: 0.5, y: 0.5 });
 
+  // Сурови face landmarks (478 × xyz) за Mood Check — копират се веднага в
+  // предварително алокиран буфер (MediaPipe преизползва изходните си
+  // структури между кадрите, така че референция НЕ бива да се пази).
+  const landmarksBufRef = useRef(new Float32Array(478 * 3));
+  const landmarkStampRef = useRef(0); // performance.now() на последното копие
+
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -90,6 +96,21 @@ export function useMediaPipe(videoRef, enabled = true) {
       try {
         // Face detection
         const faceResult = faceLandmarkerRef.current.detectForVideo(video, timestamp);
+
+        // Копирай суровите landmarks веднага (за Mood Check Mirror режима)
+        const lm = faceResult.faceLandmarks?.[0];
+        if (lm && lm.length >= 478) {
+          const buf = landmarksBufRef.current;
+          for (let i = 0; i < 478; i++) {
+            const p = lm[i];
+            const j = i * 3;
+            buf[j] = p.x;
+            buf[j + 1] = p.y;
+            buf[j + 2] = p.z;
+          }
+          landmarkStampRef.current = performance.now();
+        }
+
         if (faceResult.faceBlendshapes?.length > 0) {
           const blendshapes = faceResult.faceBlendshapes[0].categories;
           const detectedEmotion = classifyEmotionFromBlendshapes(blendshapes);
@@ -135,6 +156,8 @@ export function useMediaPipe(videoRef, enabled = true) {
     emotionRef,
     gestureRef,
     handPositionRef,
+    landmarksBufRef,
+    landmarkStampRef,
     detect,
     ready,
     error,

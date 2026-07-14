@@ -2,8 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Neue Machina (self-hosted, PP free license w/ attribution).
-   Ако woff2 файловете липсват, стекът пада към Chillax (Fontshare CDN). ─── */
+/* ─── Neue Machina (по избор, self-hosted — PP free license w/ attribution).
+   Свали безплатния пакет от pangrampangram.com/products/neue-machina, сложи
+   NeueMachina-Regular.woff2 и NeueMachina-Ultrabold.woff2 в client/public/fonts/
+   и разкоментирай блока по-долу. Дотогава стекът ползва Chillax (Fontshare).
+
 @font-face {
   font-family: 'Neue Machina';
   src: url('/fonts/NeueMachina-Regular.woff2') format('woff2');
@@ -16,6 +19,7 @@
   font-weight: 800;
   font-display: swap;
 }
+─── */
 
 :root {
   /* Deep-space installation palette — dark only */

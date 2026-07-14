@@ -255,6 +255,14 @@ export function Landing({ navigate }) {
                   copy="Enter a shared session with up to seven others. Every voice is a swarm of light; the artwork belongs to everyone in the room."
                   onClick={goto('collective')}
                 />
+                <ModePanel
+                  index="03"
+                  title="MOOD CHECK"
+                  tagline="See your mood as light"
+                  accent="violet"
+                  copy="Turn on your camera and watch particles become a face that mirrors your mood in real time — or flip to Mirror and see your own face rebuilt from sixteen thousand points of light."
+                  onClick={goto('moodcheck')}
+                />
               </div>
             </div>
           </section>

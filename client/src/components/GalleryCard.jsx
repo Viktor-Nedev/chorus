@@ -25,10 +25,14 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
           <div className="flex items-center gap-3 mb-2">
             <span
               className={`text-[9px] uppercase tracking-[0.25em] ${
-                artwork.mode === 'collective' ? 'text-accent-cyan/80' : 'text-accent-violet/80'
+                artwork.mode === 'collective'
+                  ? 'text-accent-cyan/80'
+                  : artwork.mode === 'moodcheck'
+                    ? 'text-yellow-400/80'
+                    : 'text-accent-violet/80'
               }`}
             >
-              {artwork.mode}
+              {artwork.mode === 'moodcheck' ? 'mood check' : artwork.mode}
             </span>
             <span className="text-[10px] text-gray-600">{date}</span>
           </div>
