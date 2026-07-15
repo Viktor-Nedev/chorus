@@ -122,4 +122,8 @@ function status(projectId) {
   return running.get(projectId) || null;
 }
 
-module.exports = { isAvailable, deploy, stop, status };
+function isRunning(projectId) {
+  return running.has(projectId);
+}
+
+module.exports = { isAvailable, deploy, stop, status, isRunning };

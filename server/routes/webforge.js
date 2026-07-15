@@ -17,6 +17,28 @@ fs.mkdir(GENERATED_DIR, { recursive: true }).catch(() => {});
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,32}$/;
 
+// TTL cleanup: генерираните проекти по-стари от 7 дни се трият (при старт
+// и на всеки 6 часа). Проекти с работещ container се пропускат.
+const PROJECT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+async function cleanupOldProjects() {
+  try {
+    const entries = await fs.readdir(GENERATED_DIR, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory() || !SAFE_ID.test(e.name)) continue;
+      if (hosting.isRunning?.(e.name)) continue;
+      const stat = await fs.stat(path.join(GENERATED_DIR, e.name)).catch(() => null);
+      if (stat && Date.now() - stat.mtimeMs > PROJECT_TTL_MS) {
+        await fs.rm(path.join(GENERATED_DIR, e.name), { recursive: true, force: true });
+        console.log(`WebForge: cleaned up old project ${e.name}`);
+      }
+    }
+  } catch (err) {
+    console.error('WebForge cleanup error:', err.message);
+  }
+}
+cleanupOldProjects();
+setInterval(cleanupOldProjects, 6 * 60 * 60 * 1000).unref();
+
 // Файловите пътища от AI/клиента минават през тази проверка —
 // само relative, без .. и без абсолютни пътища.
 function safeRelPath(p) {
@@ -55,10 +77,10 @@ router.post('/analyze', async (req, res) => {
 // ── POST /generate — пълна генерация на проект
 router.post('/generate', async (req, res) => {
   try {
-    const { projectId: incoming, projectName, objects, components, image } = req.body || {};
+    const { projectId: incoming, projectName, objects, components, image, stylePreset } = req.body || {};
     const projectId = SAFE_ID.test(incoming || '') ? incoming : nanoid(10);
 
-    const result = await generateProject({ projectName, objects, components, image });
+    const result = await generateProject({ projectName, objects, components, image, stylePreset });
     if (!Array.isArray(result.files) || result.files.length === 0) {
       return res.status(500).json({ error: 'AI returned no files' });
     }

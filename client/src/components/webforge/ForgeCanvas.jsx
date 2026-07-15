@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Canvas, PencilBrush } from 'fabric';
+import { Canvas, PencilBrush, CircleBrush, SprayBrush } from 'fabric';
 import { makeFrame, CUSTOM_PROPS } from './tools';
+
+const BRUSHES = { pencil: PencilBrush, marker: CircleBrush, spray: SprayBrush };
 
 const UNDO_CAP = 30;
 
@@ -128,6 +130,20 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
     });
     ro.observe(host);
 
+    // ── Delete/Backspace трие селекцията (освен при писане в текст/поле)
+    const onKeyDown = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      const active = canvas.getActiveObject();
+      if (!active || active.isEditing) return;
+      e.preventDefault();
+      canvas.getActiveObjects().forEach((o) => canvas.remove(o));
+      canvas.discardActiveObject();
+      canvas.renderAll();
+    };
+    window.addEventListener('keydown', onKeyDown);
+
     // ── Изложи api
     onReadyRef.current?.({
       getCanvas: () => canvas,
@@ -161,10 +177,29 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
       setDrawingMode: (on) => {
         canvas.isDrawingMode = on;
       },
+      setBrush: ({ type = 'pencil', color = '#F5F5F5', width = 2 } = {}) => {
+        const Brush = BRUSHES[type] || PencilBrush;
+        if (!(canvas.freeDrawingBrush instanceof Brush)) {
+          canvas.freeDrawingBrush = new Brush(canvas);
+        }
+        canvas.freeDrawingBrush.color = color;
+        canvas.freeDrawingBrush.width = width;
+      },
+      loadJSON: async (json) => {
+        restoring = true;
+        await canvas.loadFromJSON(json);
+        canvas.backgroundColor = '#0d0d12';
+        canvas.renderAll();
+        restoring = false;
+        undoStack = [JSON.stringify(canvas.toJSON(CUSTOM_PROPS))];
+        redoStack = [];
+        onObjectsChangedRef.current?.();
+      },
     });
 
     return () => {
       ro.disconnect();
+      window.removeEventListener('keydown', onKeyDown);
       canvas.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -22,9 +22,13 @@ export const FRAME_COLORS = {
   card: '#FFD27F',
   footer: '#FF8FC7',
   sidebar: '#64FFB4',
+  form: '#3DDC97',
+  backend: '#FF8A3D',
 };
 
-export const FRAME_TYPES = ['auto', 'navbar', 'hero', 'section', 'card', 'footer', 'sidebar'];
+export const FRAME_TYPES = [
+  'auto', 'navbar', 'hero', 'section', 'card', 'footer', 'sidebar', 'form', 'backend',
+];
 
 export function makeFrame(left, top, width, height, frameType = 'auto') {
   const stroke = FRAME_COLORS[frameType] || FRAME_COLORS.auto;
@@ -113,79 +117,6 @@ export function makeButton(left, top, label = 'Button', style = 'primary') {
   });
   const group = new Group([rect, text], { left, top });
   group.set({ customType: 'button', buttonStyle: style });
-  return group;
-}
-
-export function makeForm(left, top, fields) {
-  const rowH = 46;
-  const width = 320;
-  const padding = 16;
-  const height = padding * 2 + fields.length * rowH + 50;
-
-  const parts = [
-    new Rect({
-      left: 0,
-      top: 0,
-      width,
-      height,
-      fill: 'rgba(255,255,255,0.05)',
-      stroke: '#64FFB4',
-      strokeWidth: 1.5,
-      rx: 8,
-      ry: 8,
-    }),
-  ];
-
-  fields.forEach((f, i) => {
-    const y = padding + i * rowH;
-    parts.push(
-      new IText(f.label, {
-        left: padding,
-        top: y,
-        fontSize: 11,
-        fill: '#8a8a92',
-        fontFamily: 'Arial',
-      })
-    );
-    parts.push(
-      new Rect({
-        left: padding,
-        top: y + 15,
-        width: width - padding * 2,
-        height: 24,
-        fill: 'rgba(255,255,255,0.08)',
-        rx: 4,
-        ry: 4,
-      })
-    );
-  });
-
-  // Submit бутон в дъното
-  parts.push(
-    new Rect({
-      left: padding,
-      top: height - 42,
-      width: width - padding * 2,
-      height: 30,
-      fill: '#8B7BFA',
-      rx: 6,
-      ry: 6,
-    })
-  );
-  parts.push(
-    new IText('Submit', {
-      left: width / 2,
-      top: height - 27,
-      originX: 'center',
-      originY: 'center',
-      fontSize: 13,
-      fill: '#0a0a0f',
-      fontFamily: 'Arial',
-    })
-  );
-
-  const group = new Group(parts, { left, top });
-  group.set({ customType: 'form', formFields: fields });
   return group;
 }
 
