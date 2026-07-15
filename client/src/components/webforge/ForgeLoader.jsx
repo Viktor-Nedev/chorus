@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 // пръстен и "уебстраница" формация (navbar/hero/колони), докато статусите
 // се сменят. Чист canvas 2D + rAF — без p5.
 const PHASES = [
-  'Чета скицата…',
-  'Разпознавам компонентите…',
-  'Пиша HTML структурата…',
-  'Стилизирам с CSS…',
-  'Добавям интеракциите…',
-  'Сглобявам React версията…',
-  'Свързвам backend-а…',
-  'Финални щрихи…',
+  'Reading your sketch…',
+  'Recognizing components…',
+  'Writing the HTML structure…',
+  'Styling with CSS…',
+  'Adding interactions…',
+  'Assembling the React version…',
+  'Wiring up the backend…',
+  'Final touches…',
 ];
 
 const SIZE = 340;
@@ -123,10 +123,10 @@ export function ForgeLoader({ projectName }) {
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink/85 backdrop-blur-sm animate-fade-in">
       <canvas ref={canvasRef} style={{ width: SIZE, height: SIZE }} />
       <div className="font-display font-bold text-white text-lg mt-2 tracking-wide">
-        Изграждам „{projectName}“
+        Forging “{projectName}”
       </div>
       <div className="text-sm text-accent-cyan mt-2 glow-pulse">{PHASES[phase]}</div>
-      <div className="text-[11px] text-gray-500 mt-4">Gemini пише кода на сайта ти — обикновено 20–60 секунди</div>
+      <div className="text-[11px] text-gray-500 mt-4">Gemini is writing your website code — usually 20–60 seconds</div>
     </div>
   );
 }

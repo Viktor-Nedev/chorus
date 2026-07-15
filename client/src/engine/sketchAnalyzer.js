@@ -61,11 +61,17 @@ function serializeObject(obj, cw, ch) {
     base.polyline = pathToPolyline(obj);
   }
   if (obj.type === 'group' && typeof obj.getObjects === 'function') {
-    // Децата носят текстово съдържание (лейбъли на бутони/навигация)
-    base.children = obj
-      .getObjects()
-      .filter((c) => c.text)
-      .map((c) => ({ type: c.type, text: c.text }));
+    if (obj.customType === 'drawing') {
+      // Спрей щрих — група от точки; носи само цвета си
+      base.stroke = obj.getObjects()[0]?.fill || base.stroke;
+      base.children = undefined;
+    } else {
+      // Децата носят текстово съдържание (лейбъли на бутони/навигация)
+      base.children = obj
+        .getObjects()
+        .filter((c) => c.text)
+        .map((c) => ({ type: c.type, text: c.text }));
+    }
   }
   // Премахни undefined стойности за компактен payload
   return Object.fromEntries(Object.entries(base).filter(([, v]) => v !== undefined));

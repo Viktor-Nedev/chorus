@@ -90,6 +90,11 @@ function renderObject(o, cw, ch) {
       <div style="height:16cqh;min-height:22px;background:#6c5ce7;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${fontCqw(13, cw)};font-weight:600;">Submit</div></div>`;
   }
 
+  // ── Спрей щрих (група от точки) → мек цветен регион
+  if (type === 'drawing' && o.type === 'group') {
+    return `<div style="${posStyle(o)}border-radius:40%;background:${esc(o.stroke || '#9a9aa4')};opacity:0.35;filter:blur(3px);"></div>`;
+  }
+
   // ── Freehand щрих → SVG полилиния
   if (o.type === 'freehand' && o.polyline?.length > 1) {
     const points = o.polyline.map(([x, y]) => `${x},${y}`).join(' ');

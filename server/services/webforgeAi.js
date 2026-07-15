@@ -44,15 +44,29 @@ function compactJson(items, budget) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Изважда препоръчаното време за изчакване от 429 отговор ("retryDelay":"44s")
+function parseRetrySeconds(msg) {
+  const m = /retry in ([\d.]+)s|"retryDelay":"(\d+)/i.exec(msg);
+  return m ? Math.ceil(parseFloat(m[1] || m[2])) : null;
+}
+
+class QuotaError extends Error {
+  constructor(retryIn) {
+    super('Gemini quota exceeded');
+    this.code = 'quota_exceeded';
+    this.retryIn = retryIn;
+  }
+}
+
 async function callJson(parts, retryHint) {
   let lastErr;
+  let sawQuota = false;
+  let minRetryIn = null;
   for (const modelName of MODELS) {
     const model = getClient().getGenerativeModel({
       model: modelName,
       generationConfig: { responseMimeType: 'application/json' },
     });
-    // До 2 опита на модел: transient (503/429) → backoff и втори опит на
-    // същия модел; невалиден JSON → втори опит с изрична инструкция.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const reqParts =
@@ -66,11 +80,21 @@ async function callJson(parts, retryHint) {
         return extractJson(result.response.text());
       } catch (err) {
         lastErr = err;
-        const transient = /503|429|Service Unavailable|high demand|overloaded|fetch/i.test(String(err.message));
+        const msg = String(err.message);
+        // 429 quota: retry на СЪЩИЯ модел е безсмислен (квотата е per-model,
+        // per-day на free tier) — направо следващия модел, без да горим заявки.
+        if (/429|Too Many Requests|quota/i.test(msg)) {
+          sawQuota = true;
+          const r = parseRetrySeconds(msg);
+          if (r && (minRetryIn === null || r < minRetryIn)) minRetryIn = r;
+          break;
+        }
+        const transient = /503|Service Unavailable|high demand|overloaded|fetch/i.test(msg);
         if (transient && attempt === 0) await sleep(1500);
       }
     }
   }
+  if (sawQuota) throw new QuotaError(minRetryIn);
   throw lastErr;
 }
 

@@ -58,6 +58,8 @@ export function RightPanel({
   summary,
   analyzing,
   onAnalyze,
+  autoAnalyze,
+  onToggleAutoAnalyze,
   chatMessages,
   chatBusy,
   onSendChat,
@@ -148,7 +150,7 @@ export function RightPanel({
               className={`px-2 py-1 text-[10px] rounded transition ${
                 previewMode === 'wireframe' ? 'bg-ink-line text-white' : 'text-gray-500 hover:text-gray-300'
               }`}
-              title="Жив wireframe от скицата — обновява се докато рисуваш"
+              title="Live wireframe of your sketch — updates as you draw"
             >
               ✏ Wireframe
             </button>
@@ -158,7 +160,7 @@ export function RightPanel({
               className={`px-2 py-1 text-[10px] rounded transition disabled:opacity-40 ${
                 previewMode === 'generated' ? 'bg-ink-line text-white' : 'text-gray-500 hover:text-gray-300'
               }`}
-              title="Генерираният от AI сайт"
+              title="The AI-generated website"
             >
               ⚡ Generated
             </button>
@@ -196,7 +198,7 @@ export function RightPanel({
           <div className="flex-1 overflow-auto bg-[#16161c] flex items-start justify-center p-3">
             {!activePreviewHtml ? (
               <p className="text-xs text-gray-600 self-center text-center leading-relaxed">
-                Започни да рисуваш вляво —<br />preview-то се появява веднага тук.
+                Start drawing on the left —<br />the preview appears here instantly.
               </p>
             ) : (
               <div
@@ -269,13 +271,22 @@ export function RightPanel({
             {analyzing ? '🔍 Analyzing…' : '🔍 Analyze sketch'}
           </button>
 
+          <label className="flex items-center gap-2 px-1 text-[10px] text-gray-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!autoAnalyze}
+              onChange={onToggleAutoAnalyze}
+              className="accent-accent-cyan"
+            />
+            Auto-analyze while drawing
+            <span className="text-gray-600">(uses Gemini quota)</span>
+          </label>
+
           {summary && <p className="text-[11px] text-gray-400 italic leading-snug px-1">{summary}</p>}
 
           {components.length === 0 && !analyzing && (
             <p className="text-[11px] text-gray-600 text-center pt-8">
-              Draw your layout, then analyze.
-              <br />
-              Auto-analysis runs after you pause.
+              Draw your layout, then hit Analyze.
             </p>
           )}
 
@@ -310,7 +321,7 @@ export function RightPanel({
               <p className="text-[11px] text-gray-600 text-center pt-8 px-4">
                 Generate the site first, then ask for changes:
                 <br />
-                <span className="text-gray-500">"Направи navbar-а sticky", "Add dark mode", …</span>
+                <span className="text-gray-500">"Make the navbar sticky", "Add dark mode", …</span>
               </p>
             )}
             {chatMessages.map((m, i) => (
@@ -396,14 +407,14 @@ export function RightPanel({
                 >
                   📥 <span className="font-bold">Download ZIP</span>
                   <span className="block text-[11px] text-gray-500 mt-0.5">
-                    Целият проект + README с инструкции за стартиране
+                    Full project + README with run instructions
                   </span>
                 </button>
 
                 {hasBackend && !dockerAvailable ? (
                   <div className="rounded-lg border border-yellow-900 bg-yellow-950/30 p-4 text-xs text-yellow-400">
-                    ⚠ Docker Desktop не е стартиран. Пусни го и презареди, за да deploy-неш
-                    backend-а в изолиран контейнер.
+                    ⚠ Docker Desktop is not running. Start it and reload to deploy the
+                    backend in an isolated container.
                   </div>
                 ) : deployment ? (
                   <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
@@ -439,8 +450,8 @@ export function RightPanel({
                     </span>
                     <span className="block text-[11px] text-gray-500 mt-0.5">
                       {hasBackend
-                        ? 'Изолиран контейнер (node:20-alpine, 256MB) на localhost порт'
-                        : 'Мигновен статичен хостинг на /hosted/… URL'}
+                        ? 'Isolated container (node:20-alpine, 256MB) on a localhost port'
+                        : 'Instant static hosting at a /hosted/… URL'}
                     </span>
                   </button>
                 )}
@@ -448,11 +459,11 @@ export function RightPanel({
                 <button
                   disabled
                   className="w-full rounded-lg border border-ink-line py-3 text-sm text-gray-600 text-left px-4 cursor-not-allowed"
-                  title="Изисква Vercel API token"
+                  title="Requires a Vercel API token"
                 >
                   ▲ <span className="font-bold">Deploy to Vercel</span>
                   <span className="block text-[11px] text-gray-700 mt-0.5">
-                    Изисква Vercel API token — coming soon
+                    Requires a Vercel API token — coming soon
                   </span>
                 </button>
               </>

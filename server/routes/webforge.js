@@ -59,6 +59,25 @@ async function writeProjectFiles(projectId, files) {
   }
 }
 
+// Quota грешките отиват към клиента като 429 с retryIn — не като общо 500
+function sendAiError(res, err, fallbackMsg) {
+  if (err.code === 'quota_exceeded') {
+    return res.status(429).json({ error: 'quota_exceeded', retryIn: err.retryIn });
+  }
+  console.error('WebForge AI error:', err.message);
+  res.status(500).json({ error: fallbackMsg + ': ' + err.message });
+}
+
+// Кеш на анализите: същата скица → същият отговор, без нов Gemini call.
+// (PNG dataURL-ът е детерминистичен за непроменено платно.)
+const analyzeCache = new Map(); // hash → { result, at }
+const ANALYZE_CACHE_TTL = 10 * 60 * 1000;
+function quickHash(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h;
+}
+
 // ── POST /analyze — Gemini vision анализ на скицата
 router.post('/analyze', async (req, res) => {
   try {
@@ -66,11 +85,17 @@ router.post('/analyze', async (req, res) => {
     if (!image?.startsWith('data:image/')) {
       return res.status(400).json({ error: 'image dataURL required' });
     }
+    const key = quickHash(image + JSON.stringify(objects || []));
+    const cached = analyzeCache.get(key);
+    if (cached && Date.now() - cached.at < ANALYZE_CACHE_TTL) {
+      return res.json(cached.result);
+    }
     const result = await analyzeSketch({ image, objects, canvasSize });
+    analyzeCache.set(key, { result, at: Date.now() });
+    if (analyzeCache.size > 40) analyzeCache.delete(analyzeCache.keys().next().value);
     res.json(result);
   } catch (err) {
-    console.error('WebForge analyze error:', err.message);
-    res.status(500).json({ error: 'Analysis failed' });
+    sendAiError(res, err, 'Analysis failed');
   }
 });
 
@@ -94,8 +119,7 @@ router.post('/generate', async (req, res) => {
 
     res.json({ projectId, hasBackend: !!result.hasBackend, files: result.files });
   } catch (err) {
-    console.error('WebForge generate error:', err.message);
-    res.status(500).json({ error: 'Generation failed: ' + err.message });
+    sendAiError(res, err, 'Generation failed');
   }
 });
 
@@ -110,8 +134,7 @@ router.post('/chat', async (req, res) => {
     }
     res.json(result);
   } catch (err) {
-    console.error('WebForge chat error:', err.message);
-    res.status(500).json({ error: 'Chat failed' });
+    sendAiError(res, err, 'Chat failed');
   }
 });
 

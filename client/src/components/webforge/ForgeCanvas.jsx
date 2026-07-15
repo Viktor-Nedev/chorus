@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { Canvas, PencilBrush, CircleBrush, SprayBrush } from 'fabric';
+import { Canvas, PencilBrush, SprayBrush } from 'fabric';
 import { makeFrame, CUSTOM_PROPS } from './tools';
 
-const BRUSHES = { pencil: PencilBrush, marker: CircleBrush, spray: SprayBrush };
+// Полупрозрачна версия на hex цвят — за мекия "маркер" щрих
+function withAlpha(hex, alpha) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 
 const UNDO_CAP = 30;
 
@@ -69,6 +75,13 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
     canvas.on('object:added', pushSnapshot);
     canvas.on('object:modified', pushSnapshot);
     canvas.on('object:removed', pushSnapshot);
+
+    // Щрихите от четките (path за молив/маркер, group за спрей) получават
+    // customType 'drawing', за да ги разпознават wireframe-ът и анализът
+    canvas.on('path:created', (e) => {
+      const p = e.path;
+      if (p && !p.customType) p.set({ customType: 'drawing' });
+    });
 
     // ── Selection събития → Properties панела
     const emitSelection = () => onSelectionRef.current?.(canvas.getActiveObject() || null);
@@ -178,12 +191,25 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
         canvas.isDrawingMode = on;
       },
       setBrush: ({ type = 'pencil', color = '#F5F5F5', width = 2 } = {}) => {
-        const Brush = BRUSHES[type] || PencilBrush;
-        if (!(canvas.freeDrawingBrush instanceof Brush)) {
-          canvas.freeDrawingBrush = new Brush(canvas);
+        // Молив = чиста тънка линия; маркер = широк мек полупрозрачен щрих
+        // (същият PencilBrush — CircleBrush дава разкъсани точки); спрей =
+        // SprayBrush с гъсти дребни частици.
+        if (type === 'spray') {
+          const brush = new SprayBrush(canvas);
+          brush.color = color;
+          brush.width = width * 5;
+          brush.density = 60;
+          brush.dotWidth = Math.max(1, width / 3);
+          brush.dotWidthVariance = 1;
+          canvas.freeDrawingBrush = brush;
+        } else {
+          const brush = new PencilBrush(canvas);
+          brush.color = type === 'marker' ? withAlpha(color, 0.5) : color;
+          brush.width = type === 'marker' ? width * 3 : width;
+          brush.strokeLineCap = 'round';
+          brush.strokeLineJoin = 'round';
+          canvas.freeDrawingBrush = brush;
         }
-        canvas.freeDrawingBrush.color = color;
-        canvas.freeDrawingBrush.width = width;
       },
       loadJSON: async (json) => {
         restoring = true;

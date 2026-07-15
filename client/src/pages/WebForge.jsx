@@ -12,14 +12,14 @@ import { buildWireframeHtml } from '../engine/wireframePreview';
 import { useWebforge } from '../hooks/useWebforge';
 
 const TOOLS = [
-  { id: 'SELECT', icon: '⬚', label: 'Select (V) — click/move/resize · Del трие' },
-  { id: 'FRAME', icon: '▭', label: 'Frame (F) — drag блок; типът (вкл. Form/Backend) се избира след пускане' },
-  { id: 'TEXT', icon: 'T', label: 'Text (T) — двоен клик за редакция' },
+  { id: 'SELECT', icon: '⬚', label: 'Select (V) — click/move/resize · Del removes' },
+  { id: 'FRAME', icon: '▭', label: 'Frame (F) — drag a block; pick its type (incl. Form/Backend) on release' },
+  { id: 'TEXT', icon: 'T', label: 'Text (T) — double-click to edit' },
   { id: 'IMAGE', icon: '🖼', label: 'Image placeholder (I)' },
   { id: 'BUTTON', icon: '⏺', label: 'Button (B)' },
   { id: 'NAV', icon: '☰', label: 'Navbar' },
   { id: 'COMPONENT', icon: '◈', label: 'Component library' },
-  { id: 'DRAW', icon: '✏', label: 'Free draw — четка/цвят от бутоните долу' },
+  { id: 'DRAW', icon: '✏', label: 'Free draw — pick brush & color below' },
 ];
 
 const SWATCHES = [
@@ -28,16 +28,27 @@ const SWATCHES = [
 ];
 
 const BRUSH_TYPES = [
-  { id: 'pencil', label: '✏ Молив', hint: 'тънка прецизна линия' },
-  { id: 'marker', label: '🖊 Маркер', hint: 'мек плътен щрих' },
-  { id: 'spray', label: '💨 Спрей', hint: 'разпръснати точки' },
+  { id: 'pencil', label: '✏ Pencil', hint: 'thin precise line' },
+  { id: 'marker', label: '🖊 Marker', hint: 'soft bold stroke' },
+  { id: 'spray', label: '💨 Spray', hint: 'scattered dots' },
 ];
 
 const STYLE_PRESETS = ['Minimal', 'Corporate', 'Playful', 'Dark', 'Glassmorphism', 'Brutalist'];
 
-const AUTO_ANALYZE_DEBOUNCE = 2000;
-const AUTO_ANALYZE_MIN_INTERVAL = 10000;
+// Auto-analyze е ИЗКЛЮЧЕН по подразбиране — free tier квотата на Gemini е
+// ~20 заявки/ден на модел и автоматичните анализи я изгарят за минути.
+const AUTO_ANALYZE_DEBOUNCE = 2500;
+const AUTO_ANALYZE_MIN_INTERVAL = 30000;
 const STORAGE_KEY = 'webforge-project';
+
+function aiErrorMessage(e, what) {
+  if (e.data?.error === 'quota_exceeded') {
+    return e.data.retryIn
+      ? `Gemini free-tier quota reached. Try again in ~${e.data.retryIn}s.`
+      : 'Gemini free-tier daily quota reached. Try again later today (or add billing to the API key).';
+  }
+  return `${what} failed (${e.message}). Gemini may be overloaded — try again.`;
+}
 
 export function WebForge({ navigate }) {
   const [projectName, setProjectName] = useState('My Website');
@@ -155,10 +166,14 @@ export function WebForge({ navigate }) {
   const lastAnalyzeAt = useRef(0);
   const analyzeTimer = useRef(null);
 
+  const [autoAnalyze, setAutoAnalyze] = useState(false);
+  const autoAnalyzeRef = useRef(false);
+  autoAnalyzeRef.current = autoAnalyze;
+
   const runAnalyze = useCallback(async () => {
     const canvas = canvasApiRef.current?.getCanvas();
     if (!canvas || canvas.getObjects().length === 0) {
-      showToast('Нарисувай нещо първо');
+      showToast('Draw something first');
       return;
     }
     lastAnalyzeAt.current = Date.now();
@@ -169,14 +184,14 @@ export function WebForge({ navigate }) {
       setComponents(result.components || []);
       setSummary(result.summary || '');
     } catch (e) {
-      setErrorBanner({
-        msg: 'Анализът се провали (' + e.message + '). Gemini може да е претоварен в момента.',
-        retry: 'analyze',
-      });
+      // При изчерпана квота спри автоматичните анализи — само горят заявки
+      if (e.data?.error === 'quota_exceeded') setAutoAnalyze(false);
+      setErrorBanner({ msg: aiErrorMessage(e, 'Analysis'), retry: 'analyze' });
     }
   }, [wf]);
 
   const scheduleAutoAnalyze = useCallback(() => {
+    if (!autoAnalyzeRef.current) return;
     clearTimeout(analyzeTimer.current);
     analyzeTimer.current = setTimeout(() => {
       if (Date.now() - lastAnalyzeAt.current >= AUTO_ANALYZE_MIN_INTERVAL) {
@@ -227,7 +242,7 @@ export function WebForge({ navigate }) {
 
   // ── New project
   const handleNewProject = () => {
-    if (!window.confirm('Ново начало? Текущият проект ще бъде изчистен.')) return;
+    if (!window.confirm('Start fresh? The current project will be cleared.')) return;
     canvasApiRef.current?.clear();
     setProjectName('My Website');
     setProjectId(null);
@@ -343,7 +358,7 @@ export function WebForge({ navigate }) {
   const handleGenerate = async () => {
     const canvas = canvasApiRef.current?.getCanvas();
     if (!canvas || canvas.getObjects().length === 0) {
-      showToast('Нарисувай layout първо');
+      showToast('Draw a layout first');
       return;
     }
     setErrorBanner(null);
@@ -361,12 +376,9 @@ export function WebForge({ navigate }) {
       setFiles(result.files);
       setHasBackend(result.hasBackend);
       setDeployment(null);
-      showToast('✓ Сайтът е генериран');
+      showToast('✓ Website generated');
     } catch (e) {
-      setErrorBanner({
-        msg: 'Генерацията се провали (' + e.message + '). Опитай пак — Gemini понякога е претоварен.',
-        retry: 'generate',
-      });
+      setErrorBanner({ msg: aiErrorMessage(e, 'Generation'), retry: 'generate' });
     }
   };
 
@@ -385,7 +397,7 @@ export function WebForge({ navigate }) {
         { role: 'ai', text: result.reply, updatedFiles: result.updatedFiles || [] },
       ]);
     } catch (e) {
-      setChatMessages((m) => [...m, { role: 'ai', text: 'Грешка: ' + e.message }]);
+      setChatMessages((m) => [...m, { role: 'ai', text: 'Error: ' + e.message }]);
     } finally {
       setChatBusy(false);
     }
@@ -401,7 +413,7 @@ export function WebForge({ navigate }) {
       }
       return next;
     });
-    showToast('✓ Промените са приложени');
+    showToast('✓ Changes applied');
   };
 
   const handleFileChange = (path, content) => {
@@ -418,7 +430,7 @@ export function WebForge({ navigate }) {
     } catch (e) {
       if (e.data?.error === 'docker_unavailable') {
         setDockerAvailable(false);
-        showToast('Docker Desktop не е стартиран');
+        showToast('Docker Desktop is not running');
       } else {
         showToast('Deploy failed — ' + e.message);
       }
@@ -478,7 +490,7 @@ export function WebForge({ navigate }) {
           <select
             value={stylePreset}
             onChange={(e) => setStylePreset(e.target.value)}
-            title="Визуален стил на генерирания сайт"
+            title="Visual style of the generated website"
             className="h-8 rounded-lg bg-ink border border-ink-line px-2 text-xs text-gray-300 focus:outline-none focus:border-accent-violet"
           >
             {STYLE_PRESETS.map((s) => (
@@ -487,7 +499,7 @@ export function WebForge({ navigate }) {
           </select>
           <button
             onClick={handleNewProject}
-            title="Ново начало — чисто платно"
+            title="Start fresh — blank canvas"
             className="rounded-lg border border-ink-line px-3 h-8 text-xs text-gray-400 hover:text-white hover:bg-ink-line/40 transition"
           >
             + New
@@ -517,7 +529,7 @@ export function WebForge({ navigate }) {
             onClick={() => (errorBanner.retry === 'generate' ? handleGenerate() : runAnalyze())}
             className="rounded border border-red-700 px-3 py-1 text-red-200 hover:bg-red-900/50 transition"
           >
-            ↻ Опитай пак
+            ↻ Retry
           </button>
           <button onClick={() => setErrorBanner(null)} className="text-red-400 hover:text-white px-1">
             ✕
@@ -553,7 +565,7 @@ export function WebForge({ navigate }) {
                 setShowColorPopover((s) => !s);
                 setShowBrushPopover(false);
               }}
-              title="Цвят — за четката и селектирания обект"
+              title="Color — brush & selected object"
               className="w-10 h-10 rounded-lg flex items-center justify-center border border-transparent hover:bg-ink-line/50 transition"
             >
               <span
@@ -567,7 +579,7 @@ export function WebForge({ navigate }) {
                 setShowBrushPopover((s) => !s);
                 setShowColorPopover(false);
               }}
-              title="Четка — тип и дебелина"
+              title="Brush — type & width"
               className={`w-10 h-10 rounded-lg flex items-center justify-center text-base transition border ${
                 showBrushPopover
                   ? 'bg-accent-violet/25 border-accent-violet text-white'
@@ -612,8 +624,8 @@ export function WebForge({ navigate }) {
 
             {/* Color popover */}
             {showColorPopover && (
-              <div className="absolute left-2 top-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 animate-fade-in">
-                <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500 pb-2">Цвят</div>
+              <div className="absolute left-2 bottom-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 animate-fade-in">
+                <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500 pb-2">Color</div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {SWATCHES.map((c) => (
                     <button
@@ -640,8 +652,8 @@ export function WebForge({ navigate }) {
 
             {/* Brush popover */}
             {showBrushPopover && (
-              <div className="absolute left-2 top-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 w-52 animate-fade-in">
-                <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500 pb-2">Четка</div>
+              <div className="absolute left-2 bottom-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 w-52 animate-fade-in">
+                <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500 pb-2">Brush</div>
                 {BRUSH_TYPES.map((b) => (
                   <button
                     key={b.id}
@@ -658,7 +670,7 @@ export function WebForge({ navigate }) {
                 ))}
                 <div className="mt-2">
                   <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                    <span>Дебелина</span>
+                    <span>Width</span>
                     <span>{brushWidth}px</span>
                   </div>
                   <input
@@ -675,9 +687,9 @@ export function WebForge({ navigate }) {
 
             {/* Component popover */}
             {showComponentPopover && (
-              <div className="absolute left-2 top-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2 animate-fade-in max-h-72 overflow-y-auto">
+              <div className="absolute left-2 bottom-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2 animate-fade-in max-h-72 overflow-y-auto">
                 <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500 px-2 pb-1.5">
-                  Компонент
+                  Component
                 </div>
                 {COMPONENT_KINDS.map((k) => (
                   <button
@@ -714,6 +726,8 @@ export function WebForge({ navigate }) {
             summary={summary}
             analyzing={wf.analyzing}
             onAnalyze={runAnalyze}
+            autoAnalyze={autoAnalyze}
+            onToggleAutoAnalyze={() => setAutoAnalyze((v) => !v)}
             chatMessages={chatMessages}
             chatBusy={chatBusy}
             onSendChat={handleSendChat}
@@ -751,7 +765,7 @@ export function WebForge({ navigate }) {
               {t === 'auto'
                 ? 'Auto-detect'
                 : t === 'form'
-                  ? 'Form (полетата рисуваш вътре)'
+                  ? 'Form (draw the fields inside)'
                   : t === 'backend'
                     ? '⚡ Backend zone'
                     : t.charAt(0).toUpperCase() + t.slice(1)}
