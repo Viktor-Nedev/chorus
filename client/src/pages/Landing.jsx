@@ -263,6 +263,14 @@ export function Landing({ navigate }) {
                   copy="Turn on your camera and watch particles become a face that mirrors your mood in real time — or flip to Mirror and see your own face rebuilt from sixteen thousand points of light."
                   onClick={goto('moodcheck')}
                 />
+                <ModePanel
+                  index="04"
+                  title="WEBFORGE"
+                  tagline="Draw your website"
+                  accent="cyan"
+                  copy="Sketch a layout — frames, forms, buttons — and AI turns it into a working site: frontend, backend and hosting in one. Download it or run it in its own container."
+                  onClick={goto('webforge')}
+                />
               </div>
             </div>
           </section>

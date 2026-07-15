@@ -1,0 +1,11 @@
+# Sandbox образ за изпълнение на генерирани WebForge backend-и.
+# hostingService.js използва node:20-alpine директно с еквивалентна команда —
+# този файл документира/възпроизвежда средата и може да послужи за custom
+# base image (docker build -f Dockerfile.sandbox -t webforge-sandbox .).
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Проектът се монтира read-only на /project и се копира при старт,
+# за да не пипа контейнерът оригиналните файлове.
+CMD ["sh", "-c", "cp -r /project /app && cd /app/backend && npm install --omit=dev --no-audit --no-fund && node server.js"]

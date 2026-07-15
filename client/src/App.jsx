@@ -4,6 +4,7 @@ import { SoloCanvas } from './pages/SoloCanvas';
 import { CollectiveCanvas } from './pages/CollectiveCanvas';
 import { Gallery } from './pages/Gallery';
 import { MoodCheck } from './pages/MoodCheck';
+import { WebForge } from './pages/WebForge';
 import { TransitionVeil } from './components/TransitionVeil';
 import { Cursor } from './components/Cursor';
 
@@ -51,6 +52,7 @@ export default function App() {
       {screen === 'collective' && <CollectiveCanvas navigate={navigate} />}
       {screen === 'gallery' && <Gallery navigate={navigate} />}
       {screen === 'moodcheck' && <MoodCheck navigate={navigate} />}
+      {screen === 'webforge' && <WebForge navigate={navigate} />}
 
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />

@@ -3,9 +3,11 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const { nanoid } = require('nanoid');
 const poemRouter = require('./routes/poem');
 const galleryRouter = require('./routes/gallery');
+const webforgeRouter = require('./routes/webforge');
 
 const app = express();
 const httpServer = createServer(app);
@@ -17,6 +19,12 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' })); // за imageData (base64 PNG)
 app.use('/api/poem', poemRouter);
 app.use('/api/gallery', galleryRouter);
+app.use('/api/webforge', webforgeRouter);
+// Static хостинг за генерирани WebForge проекти без backend
+app.use('/hosted/:id/', (req, res, next) => {
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(req.params.id)) return res.status(400).end();
+  express.static(path.join(__dirname, 'generated', req.params.id, 'frontend'))(req, res, next);
+});
 
 app.get('/health', (req, res) => res.json({ ok: true, sessions: sessions.size }));
 

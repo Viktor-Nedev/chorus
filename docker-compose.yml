@@ -1,0 +1,32 @@
+# CHORUS стек за локална разработка.
+# Генерираните WebForge сайтове се стартират ДИНАМИЧНО от сървъра чрез
+# dockerode (не през compose) — този файл вдига само основния стек.
+services:
+  server:
+    image: node:20-alpine
+    working_dir: /srv
+    volumes:
+      - ./server:/srv
+    command: sh -c "npm install --no-audit --no-fund && node index.js"
+    ports:
+      - '3001:3001'
+    environment:
+      - PORT=3001
+      - CLIENT_URL=http://localhost:5173
+    env_file:
+      - ./server/.env
+    # За да може сървърът в контейнер да стартира sandbox контейнери,
+    # трябва достъп до docker socket-а (само за локална разработка!):
+    # volumes:
+    #   - /var/run/docker.sock:/var/run/docker.sock
+
+  client:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./client:/app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host"
+    ports:
+      - '5173:5173'
+    environment:
+      - VITE_SERVER_URL=http://localhost:3001

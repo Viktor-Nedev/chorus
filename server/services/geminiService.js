@@ -17,7 +17,7 @@ async function generatePoem({
   silenceMoments,
   mode,
 }) {
-  const model = getClient().getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+  const model = getClient().getGenerativeModel({ model: 'gemini-flash-latest' });
 
   const isCollective = mode === 'collective';
 
@@ -83,4 +83,4 @@ Write a poem about this creative moment.`;
   return result.response.text().trim();
 }
 
-module.exports = { generatePoem };
+module.exports = { generatePoem, getClient };
