@@ -53,15 +53,17 @@ export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCa
           />
         </label>
 
-        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={generatePoem}
-            onChange={(e) => setGeneratePoem(e.target.checked)}
-            className="accent-violet-500"
-          />
-          <span className="text-sm text-gray-300">Generate poem about this artwork</span>
-        </label>
+        {mode !== 'sculpt' && (
+          <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={generatePoem}
+              onChange={(e) => setGeneratePoem(e.target.checked)}
+              className="accent-violet-500"
+            />
+            <span className="text-sm text-gray-300">Generate poem about this artwork</span>
+          </label>
+        )}
 
         <div className="flex gap-3">
           <button

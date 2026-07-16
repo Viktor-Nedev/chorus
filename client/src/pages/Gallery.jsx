@@ -35,11 +35,12 @@ export function Gallery({ navigate }) {
   };
 
   const handleEdit = async (art) => {
+    const target = art.mode === 'sculpt' ? 'sculpt' : 'solo';
     try {
       const full = await fetchArtwork(art.id);
-      navigate('solo', full);
+      navigate(target, full);
     } catch {
-      navigate('solo', art);
+      navigate(target, art);
     }
   };
 
@@ -80,7 +81,7 @@ export function Gallery({ navigate }) {
           </h1>
 
           <div className="flex items-center gap-6 text-xs pb-2">
-            {['all', 'solo', 'collective', 'moodcheck'].map((f) => (
+            {['all', 'solo', 'collective', 'moodcheck', 'sculpt'].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -203,12 +204,12 @@ export function Gallery({ navigate }) {
                 >
                   Download
                 </a>
-                {selected.mode === 'solo' && (
+                {(selected.mode === 'solo' || selected.mode === 'sculpt') && (
                   <button
-                    onClick={() => navigate('solo', selected)}
+                    onClick={() => handleEdit(selected)}
                     className="rounded-lg border border-cyan-700 bg-cyan-950/40 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-900/40 transition"
                   >
-                    Edit
+                    {selected.mode === 'sculpt' ? 'Open in Sculpt' : 'Edit'}
                   </button>
                 )}
                 <button

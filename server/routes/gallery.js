@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
         .map(async (f) => {
           try {
             const data = JSON.parse(await fs.readFile(path.join(GALLERY_DIR, f), 'utf8'));
-            const { emotionHistory, ...rest } = data;
+            const { emotionHistory, sceneJson, ...rest } = data;
             return rest; // imageData остава като thumbnail източник
           } catch {
             return null;
@@ -53,11 +53,15 @@ router.get('/:id', async (req, res) => {
 // POST запази нова творба
 router.post('/', async (req, res) => {
   try {
-    const { title, author, description, imageData, emotionHistory, poem, duration, mode, totalUsers } =
+    const { title, author, description, imageData, emotionHistory, poem, duration, mode, totalUsers, sceneJson } =
       req.body || {};
 
     if (!imageData || typeof imageData !== 'string' || !imageData.startsWith('data:image/')) {
       return res.status(400).json({ error: 'imageData is required' });
+    }
+    // 3D сцена (SCULPT) — пази се за re-edit; ограничи размера
+    if (sceneJson !== undefined && JSON.stringify(sceneJson).length > 3_000_000) {
+      return res.status(400).json({ error: 'sceneJson too large' });
     }
 
     const id = nanoid(10);
@@ -71,7 +75,8 @@ router.post('/', async (req, res) => {
       poem: String(poem || '').slice(0, 2000),
       duration: Number(duration) || 0,
       totalUsers: Number(totalUsers) || undefined,
-      mode: ['collective', 'moodcheck'].includes(mode) ? mode : 'solo',
+      mode: ['collective', 'moodcheck', 'sculpt'].includes(mode) ? mode : 'solo',
+      sceneJson: sceneJson || undefined,
       createdAt: new Date().toISOString(),
     };
 

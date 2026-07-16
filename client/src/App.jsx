@@ -5,6 +5,7 @@ import { CollectiveCanvas } from './pages/CollectiveCanvas';
 import { Gallery } from './pages/Gallery';
 import { MoodCheck } from './pages/MoodCheck';
 import { WebForge } from './pages/WebForge';
+import { Sculpt } from './pages/Sculpt';
 import { TransitionVeil } from './components/TransitionVeil';
 import { Cursor } from './components/Cursor';
 
@@ -53,6 +54,13 @@ export default function App() {
       {screen === 'gallery' && <Gallery navigate={navigate} />}
       {screen === 'moodcheck' && <MoodCheck navigate={navigate} />}
       {screen === 'webforge' && <WebForge navigate={navigate} />}
+      {screen === 'sculpt' && (
+        <Sculpt
+          navigate={navigate}
+          artworkToEdit={editArtwork}
+          onArtworkConsumed={() => setEditArtwork(null)}
+        />
+      )}
 
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />

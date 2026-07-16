@@ -271,6 +271,14 @@ export function Landing({ navigate }) {
                   copy="Sketch a layout — frames, forms, buttons — and AI turns it into a working site: frontend, backend and hosting in one. Download it or run it in its own container."
                   onClick={goto('webforge')}
                 />
+                <ModePanel
+                  index="05"
+                  title="SCULPT"
+                  tagline="Draw in three dimensions"
+                  accent="violet"
+                  copy="Draw tubes in mid-air, spin vase profiles into solid bodies, sculpt mountain ranges and paint forests onto them — then export your world as GLB, OBJ, STL or straight to AR."
+                  onClick={goto('sculpt')}
+                />
               </div>
             </div>
           </section>
