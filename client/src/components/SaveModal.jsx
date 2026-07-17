@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 
 export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCancel, saving }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState(defaultTitle);
   const [author, setAuthor] = useState(defaultAuthor);
   const [description, setDescription] = useState('');
@@ -8,7 +10,12 @@ export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCa
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ title: title.trim() || defaultTitle, author: author.trim() || 'Anonymous', description: description.trim(), generatePoem });
+    onSave({
+      title: title.trim() || defaultTitle,
+      author: user?.username || author.trim() || 'Anonymous',
+      description: description.trim(),
+      generatePoem,
+    });
   };
 
   return (
@@ -31,16 +38,22 @@ export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCa
           />
         </label>
 
-        <label className="block mb-3">
-          <span className="text-xs text-gray-400 mb-1 block">Author</span>
-          <input
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            maxLength={40}
-            placeholder="Anonymous"
-            className="w-full rounded-lg bg-ink border border-ink-line px-3 py-2 text-sm text-white focus:border-violet-400 focus:outline-none"
-          />
-        </label>
+        {user ? (
+          <p className="mb-3 text-xs text-gray-500">
+            Publishing as <span className="text-gray-300 font-bold">{user.username}</span>
+          </p>
+        ) : (
+          <label className="block mb-3">
+            <span className="text-xs text-gray-400 mb-1 block">Author</span>
+            <input
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              maxLength={40}
+              placeholder="Anonymous"
+              className="w-full rounded-lg bg-ink border border-ink-line px-3 py-2 text-sm text-white focus:border-violet-400 focus:outline-none"
+            />
+          </label>
+        )}
 
         <label className="block mb-3">
           <span className="text-xs text-gray-400 mb-1 block">Description (optional)</span>

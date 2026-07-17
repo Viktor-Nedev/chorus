@@ -1,17 +1,27 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from './useAuth';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
 export function useArtworkStore() {
+  const { token } = useAuth();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const authHeaders = useCallback(
+    () => ({
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }),
+    [token]
+  );
 
   const saveArtwork = useCallback(async (artwork) => {
     setSaving(true);
     try {
       const res = await fetch(`${SERVER_URL}/api/gallery`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(artwork),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -19,7 +29,7 @@ export function useArtworkStore() {
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [authHeaders]);
 
   const fetchGallery = useCallback(async () => {
     setLoading(true);
@@ -39,10 +49,13 @@ export function useArtworkStore() {
   }, []);
 
   const deleteArtwork = useCallback(async (id) => {
-    const res = await fetch(`${SERVER_URL}/api/gallery/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${SERVER_URL}/api/gallery/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
     if (!res.ok) throw new Error('Delete failed');
     return await res.json();
-  }, []);
+  }, [authHeaders]);
 
   const generatePoem = useCallback(async (payload) => {
     const res = await fetch(`${SERVER_URL}/api/poem`, {

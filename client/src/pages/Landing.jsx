@@ -4,6 +4,7 @@ import Lenis from 'lenis';
 import { HeroScene } from '../components/landing/HeroScene';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useAuth } from '../hooks/useAuth';
 
 const INSTRUMENTS = [
   { n: '01', name: 'Emotion', desc: 'Your face sets the palette — joy turns to gold, focus to mint.' },
@@ -84,6 +85,7 @@ function sideClass(side) {
 }
 
 export function Landing({ navigate }) {
+  const { user } = useAuth();
   const scrollRef = useRef(null); // Lenis scroll container
   // sectionProgressRef: непрекъснат "секция-индекс" 0..5 (Hero/About/Modes/
   // Instruments/Gallery/Footer) — четен per-frame от HeroScene, за да движи
@@ -186,6 +188,45 @@ export function Landing({ navigate }) {
           според активната секция. */}
       <HeroScene scrollProgressRef={scrollProgressRef} className="fixed inset-0 z-0" />
 
+      {/* ── Nav chips (горе дясно) ── */}
+      <nav className="fixed top-4 right-4 z-30 flex items-center gap-2">
+        <button
+          onClick={goto('compete')}
+          data-magnetic
+          className="rounded-full border border-ink-line bg-ink-soft/70 backdrop-blur px-4 py-1.5 text-[11px] uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-gray-500 transition"
+        >
+          Compete
+        </button>
+        <button
+          onClick={goto('gallery')}
+          data-magnetic
+          className="rounded-full border border-ink-line bg-ink-soft/70 backdrop-blur px-4 py-1.5 text-[11px] uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-gray-500 transition"
+        >
+          Archive
+        </button>
+        {user ? (
+          <button
+            onClick={goto('profile')}
+            data-magnetic
+            title="Your profile"
+            className="flex items-center gap-2 rounded-full border border-accent-violet/50 bg-accent-violet/10 backdrop-blur pl-1.5 pr-4 py-1 text-[11px] text-white hover:bg-accent-violet/20 transition"
+          >
+            <span className="w-6 h-6 rounded-full bg-accent-violet/80 text-ink font-bold flex items-center justify-center text-[10px]">
+              {user.username.slice(0, 2).toUpperCase()}
+            </span>
+            {user.username}
+          </button>
+        ) : (
+          <button
+            onClick={goto('auth')}
+            data-magnetic
+            className="rounded-full bg-accent-violet/85 px-4 py-1.5 text-[11px] uppercase tracking-[0.2em] font-bold text-ink hover:bg-accent-violet transition"
+          >
+            Sign in
+          </button>
+        )}
+      </nav>
+
       {/* Скрол контейнер */}
       <div ref={scrollRef} className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden">
         <div ref={revealRootRef}>
@@ -204,7 +245,7 @@ export function Landing({ navigate }) {
           {/* ── ABOUT (нова) — партикали ляво, текст дясно ── */}
           <section
             ref={setSectionRef(1)}
-            className="relative min-h-screen flex items-center px-6 md:px-16 py-24 bg-gradient-to-b from-transparent via-ink/50 to-ink/75"
+            className="relative flex items-center px-6 md:px-16 py-20 bg-gradient-to-b from-transparent via-ink/50 to-ink/75"
           >
             <div className={`relative z-10 w-full max-w-lg ${sideClass('right')}`} data-reveal>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-6">
@@ -232,7 +273,7 @@ export function Landing({ navigate }) {
           {/* ── MODES — партикали дясно, панели ляво ── */}
           <section
             ref={setSectionRef(2)}
-            className="relative min-h-screen flex items-center px-6 md:px-16 py-24 bg-gradient-to-b from-transparent via-ink/50 to-ink/75"
+            className="relative flex items-center px-6 md:px-16 py-20 bg-gradient-to-b from-transparent via-ink/50 to-ink/75"
           >
             <div className={`relative z-10 w-full max-w-md ${sideClass('left')}`} data-reveal>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-8">
@@ -284,7 +325,7 @@ export function Landing({ navigate }) {
           </section>
 
           {/* ── INSTRUMENTS — партикали ляво, списък дясно ── */}
-          <section ref={setSectionRef(3)} className="relative px-6 md:px-16 py-28 bg-ink/70">
+          <section ref={setSectionRef(3)} className="relative px-6 md:px-16 py-16 bg-ink/70">
             <div className={`relative z-10 w-full max-w-xl ${sideClass('right')}`} data-reveal>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-12">
                 The instruments
@@ -310,7 +351,7 @@ export function Landing({ navigate }) {
 
           {/* ── GALLERY PREVIEW — партикали дясно, грид ляво ── */}
           {preview.length > 0 && (
-            <section ref={setSectionRef(4)} className="relative px-6 md:px-16 py-28 bg-ink/70">
+            <section ref={setSectionRef(4)} className="relative px-6 md:px-16 py-16 bg-ink/70">
               <div className={`relative z-10 w-full max-w-lg ${sideClass('left')}`} data-reveal>
                 <div className="flex items-baseline justify-between mb-10">
                   <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500">
@@ -345,21 +386,64 @@ export function Landing({ navigate }) {
             </section>
           )}
 
-          {/* ── FOOTER — партикали ляво, текст дясно ── */}
-          <footer ref={setSectionRef(5)} className="relative px-6 md:px-16 py-16 bg-ink/85 border-t border-ink-line">
-            <div className={`relative z-10 w-full max-w-lg ${sideClass('right')} flex flex-col md:flex-row items-start md:items-center justify-between gap-6`}>
-              <div className="font-display font-extrabold text-xl text-white tracking-tight">
-                CHORUS
+          {/* ── FOOTER ── */}
+          <footer ref={setSectionRef(5)} className="relative px-6 md:px-16 pt-14 pb-8 bg-ink/90 border-t border-ink-line">
+            <div className="relative z-10 max-w-5xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                {/* Колона 1 — бранд */}
+                <div>
+                  <div className="font-display font-extrabold text-2xl text-white tracking-tight">
+                    CHORUS
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500 leading-relaxed max-w-[26ch]">
+                    Collaborative generative art — painted with your voice, face and hands.
+                  </p>
+                  <p className="mt-4 text-[11px] text-gray-600">
+                    Camera + microphone required for live painting.
+                  </p>
+                </div>
+
+                {/* Колона 2 — режими */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-4">Explore</div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                    {[
+                      ['Solo', 'solo'], ['Collective', 'collective'], ['Mood Check', 'moodcheck'],
+                      ['WebForge', 'webforge'], ['Sculpt', 'sculpt'], ['Compete', 'compete'],
+                      ['Archive', 'gallery'], ['Profile', 'profile'],
+                    ].map(([label, screen]) => (
+                      <button
+                        key={screen}
+                        onClick={goto(screen)}
+                        className="text-left text-xs text-gray-400 hover:text-white transition"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Колона 3 — хакатон + автор */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-4">About this project</div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Built for the <span className="text-accent-violet font-bold">Hack the Arts</span> hackathon.
+                  </p>
+                  <p className="mt-3 text-xs text-gray-400">
+                    Created by <span className="text-white font-bold">Viktor Nedev</span>
+                  </p>
+                  <a
+                    href="mailto:viktornedev08@gmail.com"
+                    className="mt-1 inline-block text-xs text-accent-cyan hover:underline"
+                  >
+                    viktornedev08@gmail.com
+                  </a>
+                </div>
               </div>
-              <button
-                onClick={goto('gallery')}
-                data-magnetic
-                className="text-xs tracking-[0.25em] uppercase text-gray-400 hover:text-white transition"
-              >
-                Archive →
-              </button>
-              <div className="text-[11px] text-gray-600 tracking-wide">
-                Camera + microphone required for live painting
+
+              <div className="mt-12 pt-5 border-t border-ink-line flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span className="text-[11px] text-gray-600">© 2026 CHORUS. All rights reserved.</span>
+                <span className="text-[11px] text-gray-700">Made with voice, gestures & a lot of particles ✦</span>
               </div>
             </div>
           </footer>

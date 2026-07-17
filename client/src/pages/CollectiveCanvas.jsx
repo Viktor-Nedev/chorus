@@ -4,10 +4,15 @@ import { VideoProcessor } from '../components/VideoProcessor';
 import { ParticipantsList } from '../components/HUD';
 import { PoemOverlay } from '../components/PoemOverlay';
 import { SaveModal } from '../components/SaveModal';
+import { SharedCanvas } from '../components/collective/SharedCanvas';
+import { ChatPanel } from '../components/collective/ChatPanel';
+import { ReactionsBar } from '../components/collective/ReactionsBar';
+import { BattleOverlay } from '../components/collective/BattleOverlay';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useAuth } from '../hooks/useAuth';
 
 function hslToRgb(h, s, l) {
   s /= 100;
@@ -19,8 +24,8 @@ function hslToRgb(h, s, l) {
 }
 
 // ── Lobby: nickname + create/join ──
-function Lobby({ onCreate, onJoin, joinError, navigate }) {
-  const [nickname, setNickname] = useState('');
+function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
+  const [nickname, setNickname] = useState(defaultNickname || '');
   const [code, setCode] = useState('');
   const [mode, setMode] = useState(null); // 'create' | 'join'
 
@@ -123,9 +128,20 @@ function Session({ socket, navigate }) {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Споделено рисуване
+  const [drawMode, setDrawMode] = useState(false);
+  const [erase, setErase] = useState(false);
+  const [brushSize, setBrushSize] = useState(6);
+  const sharedCanvasRef = useRef(null);
+
   const baseColor = sessionInfo?.yourColor
     ? hslToRgb(sessionInfo.yourColor.h, sessionInfo.yourColor.s, sessionInfo.yourColor.l)
     : { r: 150, g: 100, b: 255 };
+  const colorCss = `rgb(${baseColor.r},${baseColor.g},${baseColor.b})`;
+
+  // По време на battle рисуването е винаги активно (всеки на своя слой)
+  const battlePhase = socket.battle?.phase || null;
+  const effectiveDrawMode = battlePhase === 'drawing' ? true : drawMode;
 
   // Микрофон при влизане
   useEffect(() => {
@@ -196,12 +212,21 @@ function Session({ socket, navigate }) {
     const p = p5InstanceRef.current;
     if (!p) return;
     const canvas = p.canvas ?? p.drawingContext.canvas;
+    // Композирай p5 частиците + споделения слой с рисунките
+    const combined = document.createElement('canvas');
+    combined.width = canvas.width;
+    combined.height = canvas.height;
+    const cctx = combined.getContext('2d');
+    cctx.drawImage(canvas, 0, 0);
+    if (sharedCanvasRef.current) {
+      cctx.drawImage(sharedCanvasRef.current, 0, 0, combined.width, combined.height);
+    }
     try {
       await saveArtwork({
         title,
         author,
         description,
-        imageData: canvas.toDataURL('image/png'),
+        imageData: combined.toDataURL('image/png'),
         emotionHistory: sessionEnded?.emotionHistory ?? [],
         poem: poemState?.poem ?? '',
         duration: sessionEnded?.duration ?? 0,
@@ -230,6 +255,17 @@ function Session({ socket, navigate }) {
         onSystemReady={onSystemReady}
       />
 
+      {/* Споделен слой за рисуване (над частиците) */}
+      <SharedCanvas
+        socket={socket}
+        drawMode={effectiveDrawMode}
+        erase={erase}
+        brushSize={brushSize}
+        colorCss={colorCss}
+        battlePhase={battlePhase}
+        onCanvasReady={(el) => (sharedCanvasRef.current = el)}
+      />
+
       <VideoProcessor ref={videoRef} detect={detect} active={true} />
 
       {/* Header */}
@@ -253,6 +289,12 @@ function Session({ socket, navigate }) {
         </button>
 
         <div className="ml-auto flex items-center gap-2">
+          <BattleOverlay
+            socket={socket}
+            isCreator={!!sessionInfo?.isCreator}
+            myId={sessionInfo?.yourId}
+            usersCount={Object.keys(socket.users).length + 1}
+          />
           {sessionInfo?.isCreator && !sessionEnded && (
             <button
               onClick={endSession}
@@ -263,6 +305,58 @@ function Session({ socket, navigate }) {
           )}
         </div>
       </header>
+
+      {/* ── Draw toolbar (ляво долу) ── */}
+      <div className="absolute left-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-ink-soft/80 border border-ink-line backdrop-blur px-2 py-1.5">
+        <button
+          onClick={() => setDrawMode((d) => !d)}
+          title="Draw on the shared canvas"
+          className={`w-9 h-9 rounded-full text-base transition flex items-center justify-center ${
+            effectiveDrawMode ? 'bg-accent-violet/30 border border-accent-violet' : 'hover:bg-ink-line/60'
+          }`}
+        >
+          🖌
+        </button>
+        {effectiveDrawMode && (
+          <>
+            <button
+              onClick={() => setErase((e) => !e)}
+              title="Eraser"
+              className={`w-9 h-9 rounded-full text-base transition flex items-center justify-center ${
+                erase ? 'bg-red-950/70 border border-red-700' : 'hover:bg-ink-line/60'
+              }`}
+            >
+              ⌫
+            </button>
+            <input
+              type="range"
+              min={2}
+              max={40}
+              value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+              title="Brush size"
+              className="w-24 accent-accent-violet"
+            />
+            <span
+              className="rounded-full border border-white/30 shrink-0"
+              style={{ width: 14, height: 14, background: colorCss }}
+              title="Your color"
+            />
+          </>
+        )}
+        {sessionInfo?.isCreator && !battlePhase && (
+          <button
+            onClick={() => window.confirm('Clear the shared canvas for everyone?') && socket.clearCanvas()}
+            title="Clear shared canvas (host)"
+            className="w-9 h-9 rounded-full text-sm text-gray-400 hover:text-red-400 hover:bg-ink-line/60 transition"
+          >
+            🗑
+          </button>
+        )}
+      </div>
+
+      <ReactionsBar socket={socket} />
+      <ChatPanel messages={socket.chatMessages} onSend={socket.sendChat} myId={sessionInfo?.yourId} />
 
       <ParticipantsList
         users={users}
@@ -302,15 +396,16 @@ function Session({ socket, navigate }) {
 
 export function CollectiveCanvas({ navigate }) {
   const socket = useSocket();
+  const { user, token } = useAuth();
   const nicknameRef = useRef('');
 
   const handleCreate = (nickname) => {
     nicknameRef.current = nickname;
-    socket.createSession(nickname);
+    socket.createSession(nickname, token);
   };
   const handleJoin = (nickname, code) => {
     nicknameRef.current = nickname;
-    socket.joinSession(nickname, code);
+    socket.joinSession(nickname, code, token);
   };
 
   if (!socket.sessionInfo) {
@@ -320,6 +415,7 @@ export function CollectiveCanvas({ navigate }) {
         onJoin={handleJoin}
         joinError={socket.joinError}
         navigate={navigate}
+        defaultNickname={user?.username}
       />
     );
   }

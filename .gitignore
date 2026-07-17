@@ -5,3 +5,5 @@ server/gallery/*.json
 server/generated/
 .DS_Store
 *.log
+server/users/
+server/competitions/

@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const { nanoid } = require('nanoid');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const GALLERY_DIR = path.join(__dirname, '../gallery');
@@ -50,10 +51,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST запази нова творба
-router.post('/', async (req, res) => {
+// POST запази нова творба (изисква акаунт — авторът идва от токена)
+router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, author, description, imageData, emotionHistory, poem, duration, mode, totalUsers, sceneJson } =
+    const { title, description, imageData, emotionHistory, poem, duration, mode, totalUsers, sceneJson } =
       req.body || {};
 
     if (!imageData || typeof imageData !== 'string' || !imageData.startsWith('data:image/')) {
@@ -68,7 +69,8 @@ router.post('/', async (req, res) => {
     const artwork = {
       id,
       title: String(title || 'Untitled').slice(0, 100),
-      author: String(author || 'Anonymous').slice(0, 50),
+      author: req.user.username,
+      userId: req.user.id,
       description: String(description || '').slice(0, 500),
       imageData,
       emotionHistory: Array.isArray(emotionHistory) ? emotionHistory.slice(0, 600) : [],
@@ -88,11 +90,16 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE
-router.delete('/:id', async (req, res) => {
+// DELETE — само собствени творби (стари без userId остават изтриваеми)
+router.delete('/:id', requireAuth, async (req, res) => {
   if (!SAFE_ID.test(req.params.id)) return res.status(400).json({ error: 'Bad id' });
+  const file = path.join(GALLERY_DIR, `${req.params.id}.json`);
   try {
-    await fs.unlink(path.join(GALLERY_DIR, `${req.params.id}.json`));
+    const artwork = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (artwork.userId && artwork.userId !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own artwork' });
+    }
+    await fs.unlink(file);
     res.json({ success: true });
   } catch {
     res.status(404).json({ error: 'Not found' });
