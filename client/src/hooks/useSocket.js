@@ -13,11 +13,15 @@ export function useSocket() {
   const [joinError, setJoinError] = useState(null);
   const [sessionEnded, setSessionEnded] = useState(null); // { emotionHistory, duration, totalUsers }
 
-  // ── Споделено рисуване / чат / реакции / battle ──
+  // ── Споделено рисуване / чат / реакции / battle / arena ──
   const strokesRef = useRef([]); // пълна история (за replay при късно закачане)
   const [chatMessages, setChatMessages] = useState([]);
   const [battle, setBattle] = useState(null);
   // battle: { phase:'drawing'|'collect'|'voting'|'result', theme, endsAt, entries?, result? }
+  const [arena, setArena] = useState(null);
+  // arena: { phase:'drawing'|'collect'|'judging'|'voting'|'results'|'podium', round,
+  //          totalRounds, kind, prompt, endsAt, entries?, results?, comment?, standings? }
+  const [camFrames, setCamFrames] = useState({}); // userId → jpg dataURL
   const listenersRef = useRef({}); // event → Set<fn> (за canvas компонентите)
 
   const emitLocal = useCallback((event, data) => {
@@ -43,8 +47,8 @@ export function useSocket() {
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
 
-    socket.on('INIT', ({ yourId, yourColor, sessionCode, users: existing, isCreator, strokes, chat }) => {
-      setSessionInfo({ yourId, yourColor, sessionCode, isCreator });
+    socket.on('INIT', ({ yourId, yourColor, sessionCode, users: existing, isCreator, strokes, chat, mode, settings }) => {
+      setSessionInfo({ yourId, yourColor, sessionCode, isCreator, mode: mode || 'canvas', settings });
       const map = {};
       existing.forEach((u) => (map[u.userId] = u));
       syncUsers(() => map);
@@ -116,13 +120,42 @@ export function useSocket() {
       setBattle((b) => ({ ...(b || {}), phase: 'result', result }))
     );
 
+    // ── Game Arena ──
+    socket.on('ARENA_ROUND', (data) =>
+      setArena({ phase: 'drawing', ...data })
+    );
+    socket.on('ARENA_COLLECT', () => {
+      setArena((a) => (a ? { ...a, phase: 'collect' } : a));
+      emitLocal('ARENA_COLLECT');
+    });
+    socket.on('ARENA_JUDGING', () =>
+      setArena((a) => (a ? { ...a, phase: 'judging' } : a))
+    );
+    socket.on('ARENA_GALLERY', ({ entries }) =>
+      setArena((a) => ({ ...(a || {}), phase: 'voting', entries, votesIn: 0 }))
+    );
+    socket.on('ARENA_VOTES', ({ count }) =>
+      setArena((a) => (a ? { ...a, votesIn: count } : a))
+    );
+    socket.on('ARENA_RESULTS', (data) =>
+      setArena((a) => ({ ...(a || {}), phase: 'results', ...data }))
+    );
+    socket.on('ARENA_PODIUM', ({ standings }) =>
+      setArena((a) => ({ ...(a || {}), phase: 'podium', standings }))
+    );
+
+    // ── Живи камери ──
+    socket.on('CAM_FRAME', ({ userId, jpg }) =>
+      setCamFrames((prev) => ({ ...prev, [userId]: jpg }))
+    );
+
     return socket;
   }, [syncUsers, emitLocal]);
 
   const createSession = useCallback(
-    (nickname, auth) => {
+    (nickname, auth, mode, settings) => {
       const socket = connect();
-      socket.emit('CREATE_SESSION', { nickname, auth });
+      socket.emit('CREATE_SESSION', { nickname, auth, mode, settings });
     },
     [connect]
   );
@@ -174,6 +207,23 @@ export function useSocket() {
 
   const dismissBattle = useCallback(() => setBattle(null), []);
 
+  // ── Arena ──
+  const startArena = useCallback(() => {
+    socketRef.current?.emit('ARENA_START');
+  }, []);
+  const sendArenaSnapshot = useCallback((png) => {
+    socketRef.current?.emit('ARENA_SNAPSHOT', { png });
+  }, []);
+  const sendArenaVote = useCallback((forUserId) => {
+    socketRef.current?.emit('ARENA_VOTE', { forUserId });
+  }, []);
+  const dismissArena = useCallback(() => setArena(null), []);
+
+  // ── Камери ──
+  const sendCamFrame = useCallback((jpg) => {
+    socketRef.current?.emit('CAM_FRAME', { jpg });
+  }, []);
+
   const endSession = useCallback(() => {
     socketRef.current?.emit('END_SESSION');
   }, []);
@@ -187,6 +237,8 @@ export function useSocket() {
     setSessionEnded(null);
     setChatMessages([]);
     setBattle(null);
+    setArena(null);
+    setCamFrames({});
     strokesRef.current = [];
   }, [syncUsers]);
 
@@ -201,6 +253,8 @@ export function useSocket() {
     sessionEnded,
     chatMessages,
     battle,
+    arena,
+    camFrames,
     strokesRef,
     onEvent,
     createSession,
@@ -215,6 +269,11 @@ export function useSocket() {
     sendBattleSnapshot,
     sendBattleVote,
     dismissBattle,
+    startArena,
+    sendArenaSnapshot,
+    sendArenaVote,
+    dismissArena,
+    sendCamFrame,
     endSession,
     disconnect,
   };

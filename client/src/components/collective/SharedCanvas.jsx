@@ -12,7 +12,8 @@ export function SharedCanvas({
   erase,
   brushSize,
   colorCss,
-  battlePhase, // null | 'drawing' | 'collect' | 'voting' | 'result'
+  battlePhase, // null | 'drawing' | 'collect' | … (battle ИЛИ arena фаза)
+  blind = false, // blind рунд: щрихите не се виждат, но се събират
   onCanvasReady,
 }) {
   const canvasRef = useRef(null);
@@ -23,7 +24,7 @@ export function SharedCanvas({
     battleStrokes: [],
   });
   const propsRef = useRef({});
-  propsRef.current = { drawMode, erase, brushSize, colorCss, battlePhase };
+  propsRef.current = { drawMode, erase, brushSize, colorCss, battlePhase, blind };
 
   // ── Рендер помощници ──
   const drawStroke = (ctx, stroke, W, H) => {
@@ -49,6 +50,7 @@ export function SharedCanvas({
     const { width: W, height: H } = canvas;
     ctx.clearRect(0, 0, W, H);
     const inBattle = !!propsRef.current.battlePhase;
+    if (inBattle && propsRef.current.blind) return; // blind рунд: нищо не се показва
     const strokes = inBattle ? stateRef.current.battleStrokes : socket.strokesRef.current;
     for (const s of strokes) drawStroke(ctx, s, W, H);
   };
@@ -77,8 +79,8 @@ export function SharedCanvas({
     const offReplay = socket.onEvent('CANVAS_REPLAY', () => redrawAll());
     const offClear = socket.onEvent('CANVAS_CLEARED', () => redrawAll());
 
-    // При BATTLE_COLLECT — прати snapshot на собствения battle слой
-    const offCollect = socket.onEvent('BATTLE_COLLECT', () => {
+    // При COLLECT — прати snapshot на собствения личен слой
+    const buildSnapshot = () => {
       const snap = document.createElement('canvas');
       const scale = 400 / canvas.width;
       snap.width = 400;
@@ -87,8 +89,14 @@ export function SharedCanvas({
       sctx.fillStyle = '#0d0d12';
       sctx.fillRect(0, 0, snap.width, snap.height);
       for (const s of stateRef.current.battleStrokes) drawStroke(sctx, s, snap.width, snap.height);
-      socket.sendBattleSnapshot(snap.toDataURL('image/png'));
-    });
+      return snap.toDataURL('image/png');
+    };
+    const offCollect = socket.onEvent('BATTLE_COLLECT', () =>
+      socket.sendBattleSnapshot(buildSnapshot())
+    );
+    const offArenaCollect = socket.onEvent('ARENA_COLLECT', () =>
+      socket.sendArenaSnapshot(buildSnapshot())
+    );
 
     return () => {
       ro.disconnect();
@@ -96,6 +104,7 @@ export function SharedCanvas({
       offReplay();
       offClear();
       offCollect();
+      offArenaCollect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -132,6 +141,7 @@ export function SharedCanvas({
     const last = st.points[st.points.length - 1];
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.0025) return;
     st.points.push(p);
+    if (propsRef.current.blind && propsRef.current.battlePhase) return; // blind: без живо рисуване
     // Живо рисуване на последния сегмент
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');

@@ -8,6 +8,8 @@ import { SharedCanvas } from '../components/collective/SharedCanvas';
 import { ChatPanel } from '../components/collective/ChatPanel';
 import { ReactionsBar } from '../components/collective/ReactionsBar';
 import { BattleOverlay } from '../components/collective/BattleOverlay';
+import { ArenaOverlay } from '../components/collective/ArenaOverlay';
+import { CamStrip } from '../components/collective/CamStrip';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
@@ -23,17 +25,35 @@ function hslToRgb(h, s, l) {
   return { r: Math.round(f(0) * 255), g: Math.round(f(8) * 255), b: Math.round(f(4) * 255) };
 }
 
-// ── Lobby: nickname + create/join ──
+// ── Lobby: избор на режим на игра + nickname + create/join ──
+const GAME_MODES = [
+  {
+    id: 'canvas',
+    icon: '🎨',
+    title: 'Shared Canvas',
+    desc: 'Everyone paints one canvas together — with live cameras of every artist.',
+  },
+  {
+    id: 'arena',
+    icon: '🏟',
+    title: 'Game Arena',
+    desc: 'Timed drawing games: draw the prompt, memory & blind rounds. Vote (or let AI judge) and collect points!',
+  },
+];
+
 function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
   const [nickname, setNickname] = useState(defaultNickname || '');
   const [code, setCode] = useState('');
   const [mode, setMode] = useState(null); // 'create' | 'join'
+  const [gameMode, setGameMode] = useState('canvas');
+  const [rounds, setRounds] = useState(3);
+  const [roundSeconds, setRoundSeconds] = useState(60);
 
   const valid = nickname.trim().length > 0;
 
   return (
-    <div className="h-full w-full bg-ink flex items-center justify-center">
-      <div className="w-full max-w-sm mx-4 animate-slide-up">
+    <div className="h-full w-full bg-ink flex items-center justify-center overflow-y-auto">
+      <div className="w-full max-w-md mx-4 py-8 animate-slide-up">
         <button
           onClick={() => navigate('landing')}
           className="text-sm text-gray-500 hover:text-white transition mb-6"
@@ -41,9 +61,66 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
           ← Back
         </button>
         <h1 className="font-display text-3xl text-white tracking-widest mb-1">COLLECTIVE</h1>
-        <p className="text-sm text-gray-400 mb-8">
-          Up to 8 people paint one canvas with their emotions.
+        <p className="text-sm text-gray-400 mb-6">
+          Up to 8 people. Pick how you want to play together.
         </p>
+
+        {/* Избор на режим (за create) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+          {GAME_MODES.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setGameMode(g.id)}
+              className={`rounded-xl border p-4 text-left transition ${
+                gameMode === g.id
+                  ? 'border-cyan-500 bg-cyan-950/30'
+                  : 'border-ink-line bg-ink-soft/40 hover:border-gray-500'
+              }`}
+            >
+              <div className="text-2xl">{g.icon}</div>
+              <div className="mt-1.5 font-display font-bold text-sm text-white">{g.title}</div>
+              <div className="mt-1 text-[11px] text-gray-500 leading-snug">{g.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Настройки за Arena */}
+        {gameMode === 'arena' && (
+          <div className="mb-5 rounded-xl border border-ink-line bg-ink-soft/40 p-3 animate-fade-in flex gap-4">
+            <label className="flex-1">
+              <span className="text-[10px] uppercase tracking-[0.15em] text-gray-500 block mb-1">Rounds</span>
+              <div className="flex gap-1.5">
+                {[3, 5].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRounds(r)}
+                    className={`flex-1 rounded-lg py-1.5 text-xs transition border ${
+                      rounds === r ? 'bg-cyan-950/60 border-cyan-600 text-cyan-300' : 'border-ink-line text-gray-400'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </label>
+            <label className="flex-[2]">
+              <span className="text-[10px] uppercase tracking-[0.15em] text-gray-500 block mb-1">Round time</span>
+              <div className="flex gap-1.5">
+                {[30, 60, 90].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setRoundSeconds(s)}
+                    className={`flex-1 rounded-lg py-1.5 text-xs transition border ${
+                      roundSeconds === s ? 'bg-cyan-950/60 border-cyan-600 text-cyan-300' : 'border-ink-line text-gray-400'
+                    }`}
+                  >
+                    {s}s
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
+        )}
 
         <label className="block mb-4">
           <span className="text-xs text-gray-400 mb-1 block">Nickname</span>
@@ -75,18 +152,18 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
 
         <div className="flex flex-col gap-3">
           <button
+            onClick={() => onCreate(nickname, gameMode, { rounds, roundSeconds })}
+            disabled={!valid}
+            className="w-full rounded-lg bg-cyan-600 py-2.5 text-sm text-white hover:bg-cyan-500 transition disabled:opacity-40"
+          >
+            Create {gameMode === 'arena' ? 'Game Arena' : 'Shared Canvas'} session
+          </button>
+          <button
             onClick={() => (mode === 'join' ? onJoin(nickname, code) : setMode('join'))}
             disabled={mode === 'join' ? !valid || code.length !== 4 : false}
             className="w-full rounded-lg border border-cyan-700 bg-cyan-950/40 py-2.5 text-sm text-cyan-300 hover:bg-cyan-900/40 transition disabled:opacity-40"
           >
-            {mode === 'join' ? 'Join session' : 'Join with Code'}
-          </button>
-          <button
-            onClick={() => onCreate(nickname)}
-            disabled={!valid}
-            className="w-full rounded-lg bg-cyan-600 py-2.5 text-sm text-white hover:bg-cyan-500 transition disabled:opacity-40"
-          >
-            Create New Session
+            {mode === 'join' ? 'Join session' : 'Join with a code instead'}
           </button>
         </div>
 
@@ -139,9 +216,15 @@ function Session({ socket, navigate }) {
     : { r: 150, g: 100, b: 255 };
   const colorCss = `rgb(${baseColor.r},${baseColor.g},${baseColor.b})`;
 
-  // По време на battle рисуването е винаги активно (всеки на своя слой)
-  const battlePhase = socket.battle?.phase || null;
-  const effectiveDrawMode = battlePhase === 'drawing' ? true : drawMode;
+  // Режим на сесията: 'canvas' (споделено платно + камери) или 'arena' (игри)
+  const isArena = sessionInfo?.mode === 'arena';
+  // "Личен слой" фаза: battle (в canvas режим) или arena рунд
+  const arenaDrawPhase =
+    isArena && ['drawing', 'collect'].includes(socket.arena?.phase) ? socket.arena.phase : null;
+  const battlePhase = socket.battle?.phase || arenaDrawPhase;
+  const isBlindRound = isArena && socket.arena?.kind === 'blind' && !!arenaDrawPhase;
+  // По време на battle/arena рунд рисуването е винаги активно (свой слой)
+  const effectiveDrawMode = battlePhase === 'drawing' ? true : !isArena && drawMode;
 
   // Микрофон при влизане
   useEffect(() => {
@@ -263,6 +346,7 @@ function Session({ socket, navigate }) {
         brushSize={brushSize}
         colorCss={colorCss}
         battlePhase={battlePhase}
+        blind={isBlindRound}
         onCanvasReady={(el) => (sharedCanvasRef.current = el)}
       />
 
@@ -289,12 +373,14 @@ function Session({ socket, navigate }) {
         </button>
 
         <div className="ml-auto flex items-center gap-2">
-          <BattleOverlay
-            socket={socket}
-            isCreator={!!sessionInfo?.isCreator}
-            myId={sessionInfo?.yourId}
-            usersCount={Object.keys(socket.users).length + 1}
-          />
+          {!isArena && (
+            <BattleOverlay
+              socket={socket}
+              isCreator={!!sessionInfo?.isCreator}
+              myId={sessionInfo?.yourId}
+              usersCount={Object.keys(socket.users).length + 1}
+            />
+          )}
           {sessionInfo?.isCreator && !sessionEnded && (
             <button
               onClick={endSession}
@@ -306,8 +392,24 @@ function Session({ socket, navigate }) {
         </div>
       </header>
 
-      {/* ── Draw toolbar (ляво долу) ── */}
-      <div className="absolute left-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-ink-soft/80 border border-ink-line backdrop-blur px-2 py-1.5">
+      {/* ── Arena overlay (режим игри) ── */}
+      {isArena && (
+        <ArenaOverlay socket={socket} isCreator={!!sessionInfo?.isCreator} myId={sessionInfo?.yourId} />
+      )}
+
+      {/* ── Живи камери (само Shared Canvas режим) ── */}
+      {!isArena && (
+        <CamStrip
+          socket={socket}
+          videoRef={videoRef}
+          users={socket.users}
+          myNickname={nicknameRef.current || 'you'}
+          myColor={sessionInfo?.yourColor}
+        />
+      )}
+
+      {/* ── Draw toolbar (ляво долу; в arena рисуваш само в рунд) ── */}
+      <div className={`absolute left-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-ink-soft/80 border border-ink-line backdrop-blur px-2 py-1.5 ${isArena && !arenaDrawPhase ? 'hidden' : ''}`}>
         <button
           onClick={() => setDrawMode((d) => !d)}
           title="Draw on the shared canvas"
@@ -399,9 +501,9 @@ export function CollectiveCanvas({ navigate }) {
   const { user, token } = useAuth();
   const nicknameRef = useRef('');
 
-  const handleCreate = (nickname) => {
+  const handleCreate = (nickname, gameMode, settings) => {
     nicknameRef.current = nickname;
-    socket.createSession(nickname, token);
+    socket.createSession(nickname, token, gameMode, settings);
   };
   const handleJoin = (nickname, code) => {
     nicknameRef.current = nickname;

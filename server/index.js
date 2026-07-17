@@ -10,8 +10,28 @@ const galleryRouter = require('./routes/gallery');
 const webforgeRouter = require('./routes/webforge');
 const authRouter = require('./routes/auth');
 const { router: competitionsRouter } = require('./routes/competitions');
-const { router: usersRouter, recordBattleWin } = require('./routes/users');
+const { router: usersRouter, recordBattleWin, recordArenaRounds } = require('./routes/users');
 const { verifyToken } = require('./middleware/auth');
+const { judgeRound } = require('./services/arenaJudge');
+
+// ── Game Arena: prompt-ове за рундовете (локални — без API квота) ──
+const DRAW_PROMPTS = [
+  'a cat', 'an elephant', 'a rocket ship', 'a dragon', 'a bicycle', 'a lighthouse',
+  'an octopus', 'a castle', 'a penguin', 'a butterfly', 'a robot', 'a pirate ship',
+  'a snowman', 'a giraffe', 'a hot air balloon', 'a wizard', 'a dinosaur', 'a mermaid',
+];
+const MEMORY_PROMPTS = [
+  { emoji: '🦊', label: 'the fox you just saw' },
+  { emoji: '🚀', label: 'the rocket you just saw' },
+  { emoji: '🏰', label: 'the castle you just saw' },
+  { emoji: '🐙', label: 'the octopus you just saw' },
+  { emoji: '⛵', label: 'the sailboat you just saw' },
+  { emoji: '🌵', label: 'the cactus you just saw' },
+  { emoji: '🎸', label: 'the guitar you just saw' },
+  { emoji: '🐘', label: 'the elephant you just saw' },
+];
+const ROUND_KINDS = ['draw', 'memory', 'blind'];
+const ROUND_POINTS = [100, 60, 40]; // 1-во/2-ро/3-то място; всички останали +20
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,14 +82,22 @@ io.on('connection', (socket) => {
   const mySession = () => sessions.get(mySessionCode);
   const myUser = () => mySession()?.users.get(myUserId);
 
-  socket.on('CREATE_SESSION', async ({ nickname, auth }) => {
+  socket.on('CREATE_SESSION', async ({ nickname, auth, mode, settings }) => {
     const account = await verifyToken(auth);
     myAccountId = account?.id || null;
     mySessionCode = generateSessionCode();
     myUserId = nanoid(8);
     const color = generateUserColor(0);
+    const sessionMode = mode === 'arena' ? 'arena' : 'canvas';
+    const rounds = [3, 5].includes(Number(settings?.rounds)) ? Number(settings.rounds) : 3;
+    const roundSeconds = [30, 60, 90, 120].includes(Number(settings?.roundSeconds))
+      ? Number(settings.roundSeconds)
+      : 60;
 
     sessions.set(mySessionCode, {
+      mode: sessionMode,
+      settings: { rounds, roundSeconds },
+      arena: null,
       creatorId: myUserId,
       users: new Map([
         [
@@ -104,8 +132,10 @@ io.on('connection', (socket) => {
       users: [],
       strokes: [],
       chat: [],
+      mode: sessionMode,
+      settings: { rounds, roundSeconds },
     });
-    console.log(`Session ${mySessionCode} created by ${nickname}`);
+    console.log(`Session ${mySessionCode} (${sessionMode}) created by ${nickname}`);
   });
 
   socket.on('JOIN_SESSION', async ({ nickname, sessionCode, auth }) => {
@@ -143,6 +173,8 @@ io.on('connection', (socket) => {
       users: [...session.users.values()].filter((u) => u.userId !== myUserId),
       strokes: session.strokes,
       chat: session.chat.slice(-50),
+      mode: session.mode,
+      settings: session.settings,
     });
     socket.to(mySessionCode).emit('USER_JOINED', userData);
     console.log(`${nickname} joined session ${sessionCode}`);
@@ -290,6 +322,183 @@ io.on('connection', (socket) => {
     battle.votes[myUserId] = forUserId;
     io.to(mySessionCode).emit('BATTLE_VOTES', { count: Object.keys(battle.votes).length });
     if (Object.keys(battle.votes).length >= session.users.size) finishBattleVoting();
+  });
+
+  // ── Живи камери (Shared Canvas режим): JPEG кадри през сокета ──
+  socket.on('CAM_FRAME', ({ jpg }) => {
+    const session = mySession();
+    const user = myUser();
+    if (!session || !user) return;
+    if (typeof jpg !== 'string' || !jpg.startsWith('data:image/jpeg') || jpg.length > 40000) return;
+    const now = Date.now();
+    if (user._lastCam && now - user._lastCam < 1000) return; // throttle
+    user._lastCam = now;
+    socket.to(mySessionCode).emit('CAM_FRAME', { userId: myUserId, jpg });
+  });
+
+  // ══════════ GAME ARENA: рундове с точки и AI съдия ══════════
+
+  const arenaComputeResults = async (ranking, comment, aiJudged) => {
+    const session = mySession();
+    const arena = session?.arena;
+    if (!arena) return;
+    arena.phase = 'results';
+    const results = ranking.map((uid, i) => {
+      const gained = ROUND_POINTS[i] ?? 20;
+      arena.scores[uid] = (arena.scores[uid] || 0) + gained;
+      const entry = arena.entries[uid];
+      return {
+        userId: uid,
+        nickname: entry?.nickname || session.users.get(uid)?.nickname || '?',
+        png: entry?.png || null,
+        gained,
+        total: arena.scores[uid],
+      };
+    });
+    // Персистирай точките към акаунтите — един запис за целия рунд
+    recordArenaRounds(
+      ranking.map((uid, i) => ({
+        accountId: session.users.get(uid)?.accountId,
+        points: ROUND_POINTS[i] ?? 20,
+        won: i === 0,
+        aiJudged,
+      }))
+    );
+    io.to(mySessionCode).emit('ARENA_RESULTS', {
+      round: arena.round,
+      totalRounds: arena.totalRounds,
+      results,
+      comment,
+      aiJudged,
+    });
+    arena.nextTimer = setTimeout(() => {
+      if (session.arena !== arena) return;
+      if (arena.round < arena.totalRounds) startArenaRound(arena.round + 1);
+      else {
+        const standings = Object.entries(arena.scores)
+          .map(([uid, pts]) => ({
+            userId: uid,
+            nickname: session.users.get(uid)?.nickname || arena.names[uid] || '?',
+            points: pts,
+          }))
+          .sort((a, b) => b.points - a.points);
+        session.arena = null;
+        io.to(mySessionCode).emit('ARENA_PODIUM', { standings });
+      }
+    }, 8000);
+  };
+
+  const finishArenaCollect = async () => {
+    const session = mySession();
+    const arena = session?.arena;
+    if (!arena || arena.phase !== 'collect') return;
+    clearTimeout(arena.collectTimer);
+    const entries = Object.values(arena.entries);
+    if (entries.length === 0) {
+      // Никой не предаде — прескочи рунда
+      arenaComputeResults([], 'Nobody submitted a drawing this round!', false);
+      return;
+    }
+    // Малко играчи (или сам) → AI съдия; иначе гласуване
+    if (session.users.size < 3 || entries.length < 3) {
+      arena.phase = 'judging';
+      io.to(mySessionCode).emit('ARENA_JUDGING');
+      const verdict = await judgeRound(arena.prompt.text, entries);
+      arenaComputeResults(verdict.ranking, verdict.comment, verdict.ai);
+    } else {
+      arena.phase = 'voting';
+      io.to(mySessionCode).emit('ARENA_GALLERY', { entries });
+      arena.voteTimer = setTimeout(() => finishArenaVoting(), 25000);
+    }
+  };
+
+  const finishArenaVoting = () => {
+    const session = mySession();
+    const arena = session?.arena;
+    if (!arena || arena.phase !== 'voting') return;
+    clearTimeout(arena.voteTimer);
+    const tally = {};
+    for (const t of Object.values(arena.votes)) tally[t] = (tally[t] || 0) + 1;
+    const ranking = Object.keys(arena.entries).sort(
+      (a, b) => (tally[b] || 0) - (tally[a] || 0)
+    );
+    arenaComputeResults(ranking, null, false);
+  };
+
+  const startArenaRound = (n) => {
+    const session = mySession();
+    if (!session) return;
+    const arena = session.arena;
+    const kind = ROUND_KINDS[(n - 1) % ROUND_KINDS.length];
+    let prompt;
+    if (kind === 'memory') {
+      const m = MEMORY_PROMPTS[Math.floor(Math.random() * MEMORY_PROMPTS.length)];
+      prompt = { text: m.label, emoji: m.emoji };
+    } else {
+      prompt = { text: DRAW_PROMPTS[Math.floor(Math.random() * DRAW_PROMPTS.length)] };
+    }
+    const s = session.settings.roundSeconds;
+    Object.assign(arena, {
+      round: n,
+      phase: 'drawing',
+      kind,
+      prompt,
+      endsAt: Date.now() + s * 1000,
+      entries: {},
+      votes: {},
+    });
+    io.to(mySessionCode).emit('ARENA_ROUND', {
+      round: n,
+      totalRounds: arena.totalRounds,
+      kind,
+      prompt,
+      endsAt: arena.endsAt,
+      seconds: s,
+    });
+    arena.drawTimer = setTimeout(() => {
+      if (session.arena !== arena) return;
+      arena.phase = 'collect';
+      io.to(mySessionCode).emit('ARENA_COLLECT');
+      arena.collectTimer = setTimeout(() => finishArenaCollect(), 8000);
+    }, s * 1000);
+  };
+
+  socket.on('ARENA_START', () => {
+    const session = mySession();
+    if (!session || session.mode !== 'arena') return;
+    if (session.creatorId !== myUserId || session.arena) return;
+    session.arena = {
+      totalRounds: session.settings.rounds,
+      round: 0,
+      scores: {},
+      names: {},
+      entries: {},
+      votes: {},
+    };
+    for (const [uid, u] of session.users) session.arena.names[uid] = u.nickname;
+    startArenaRound(1);
+  });
+
+  socket.on('ARENA_SNAPSHOT', ({ png }) => {
+    const session = mySession();
+    const user = myUser();
+    const arena = session?.arena;
+    if (!arena || !user || !['drawing', 'collect'].includes(arena.phase)) return;
+    if (typeof png !== 'string' || !png.startsWith('data:image/') || png.length > 400000) return;
+    arena.entries[myUserId] = { userId: myUserId, nickname: user.nickname, color: user.baseColor, png };
+    if (arena.phase === 'collect' && Object.keys(arena.entries).length >= session.users.size) {
+      finishArenaCollect();
+    }
+  });
+
+  socket.on('ARENA_VOTE', ({ forUserId }) => {
+    const session = mySession();
+    const arena = session?.arena;
+    if (!arena || arena.phase !== 'voting') return;
+    if (forUserId === myUserId || !arena.entries[forUserId]) return;
+    arena.votes[myUserId] = forUserId;
+    io.to(mySessionCode).emit('ARENA_VOTES', { count: Object.keys(arena.votes).length });
+    if (Object.keys(arena.votes).length >= session.users.size) finishArenaVoting();
   });
 
   socket.on('STATE_UPDATE', (data) => {

@@ -17,7 +17,23 @@ const ACHIEVEMENTS = [
   { id: 'contender', icon: '🏁', title: 'Contender', desc: 'Enter a competition', test: (s) => s.competitionsEntered >= 1 },
   { id: 'champion', icon: '🏆', title: 'Champion', desc: 'Win a competition', test: (s) => s.competitionsWon >= 1 },
   { id: 'battle', icon: '⚔', title: 'Battle Master', desc: 'Win a live draw battle', test: (s) => s.battleWins >= 1 },
+  { id: 'points100', icon: '🪙', title: 'Point Collector', desc: 'Earn 100 arena points', test: (s) => s.points >= 100 },
+  { id: 'points500', icon: '💎', title: 'High Scorer', desc: 'Earn 500 arena points', test: (s) => s.points >= 500 },
+  { id: 'roundwin', icon: '🥇', title: 'Round Winner', desc: 'Win an arena round', test: (s) => s.roundWins >= 1 },
+  { id: 'aifav', icon: '🤖', title: "AI's Favorite", desc: 'Win a round judged by the AI', test: (s) => s.aiWins >= 1 },
+  { id: 'marathon', icon: '🏃', title: 'Arena Marathon', desc: 'Play 10 arena rounds', test: (s) => s.roundsPlayed >= 10 },
 ];
+
+// Ниво (титла) от арена точки — показва се до името и в сесиите
+export const LEVELS = [
+  { min: 0, title: 'Novice', icon: '🌱' },
+  { min: 200, title: 'Apprentice', icon: '🖌' },
+  { min: 500, title: 'Artist', icon: '🎨' },
+  { min: 1000, title: 'Master', icon: '⭐' },
+  { min: 2000, title: 'Virtuoso', icon: '👑' },
+];
+export const levelFor = (points = 0) =>
+  [...LEVELS].reverse().find((l) => points >= l.min) || LEVELS[0];
 
 export function Profile({ navigate }) {
   const { user, logout, authFetch, backend } = useAuth();
@@ -51,11 +67,14 @@ export function Profile({ navigate }) {
     : null;
 
   const statCards = [
+    { label: 'Arena points', value: stats?.points ?? '—', icon: '🪙' },
     { label: 'Artworks', value: stats?.artworks ?? '—', icon: '🖼' },
     { label: 'Votes received', value: stats?.votesReceived ?? '—', icon: '🗳' },
     { label: 'Competitions won', value: stats?.competitionsWon ?? '—', icon: '🏆' },
-    { label: 'Battle wins', value: stats?.battleWins ?? '—', icon: '⚔' },
+    { label: 'Round + battle wins', value: stats ? stats.roundWins + stats.battleWins : '—', icon: '⚔' },
   ];
+  const level = levelFor(stats?.points);
+  const nextLevel = LEVELS.find((l) => l.min > (stats?.points ?? 0));
 
   return (
     <div className="h-full w-full bg-ink overflow-y-auto">
@@ -76,9 +95,17 @@ export function Profile({ navigate }) {
             {(user.username || '?').slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display font-extrabold text-white text-4xl tracking-tight truncate">
-              {user.username}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="font-display font-extrabold text-white text-4xl tracking-tight truncate">
+                {user.username}
+              </h1>
+              <span
+                className="rounded-full border border-accent-violet/50 bg-accent-violet/10 px-3 py-1 text-xs text-accent-violet font-bold"
+                title={nextLevel ? `${nextLevel.min - (stats?.points ?? 0)} points to ${nextLevel.title}` : 'Max level!'}
+              >
+                {level.icon} {level.title}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-gray-500">
               {user.email}
               {memberSince && <span> · member since {memberSince}</span>}
@@ -107,7 +134,7 @@ export function Profile({ navigate }) {
         </div>
 
         {/* ── Stats ── */}
-        <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-4">
           {statCards.map((s) => (
             <div key={s.label} className="rounded-xl border border-ink-line bg-ink-soft/50 p-5">
               <div className="text-2xl">{s.icon}</div>
