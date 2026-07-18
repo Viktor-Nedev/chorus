@@ -66,7 +66,7 @@ export function SaveModal({ defaultTitle, defaultAuthor = '', mode, onSave, onCa
           />
         </label>
 
-        {mode !== 'sculpt' && (
+        {mode !== 'sculpt' && mode !== 'moodcheck' && (
           <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
             <input
               type="checkbox"

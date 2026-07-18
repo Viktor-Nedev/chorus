@@ -13,85 +13,91 @@ import { mapLandmarksToWorld, createMappingState, LM_COUNT } from './landmarkMap
 import { moodVertex, moodFragment } from './moodShaders';
 import { FACE_TRIANGULATION } from './faceTriangulation';
 import { EMOTION_HEX } from '../../constants/emotions';
+import { AVATAR_MAP, DEFAULT_AVATAR } from './avatars';
+import { computeAnchors, deformLandmarks } from './faceDeform';
+import { updateAccessories, ACCESSORY_COUNT } from './accessories';
 
-const PARTICLE_COUNT = 24576;
-const SWAP_DEBOUNCE_MS = 600;
+const FACE_COUNT = 24576;
+const TOTAL_COUNT = FACE_COUNT + ACCESSORY_COUNT;
 const PRESENCE_TIMEOUT_MS = 500;
-// След колко кадъра стабилна детекция правим еднократния area-weighted
-// rebind (равномерно покритие по реалната площ на лицето)
 const REBIND_AFTER_FRAMES = 45;
 
-// Преалокирани Color обекти — нула алокации в useFrame
 const EMOTION_COLORS = Object.fromEntries(
   Object.entries(EMOTION_HEX).map(([k, hex]) => [k, new THREE.Color(hex)])
 );
 const IDLE_COLOR = new THREE.Color(EMOTION_HEX.neutral).multiplyScalar(0.6);
 
-const easeBlend = (b) => b * b * (3 - 2 * b);
-
 // Площ на триъгълник по 3 world-space точки от texture буфера (RGBA layout)
 function triAreaFromTex(data, ia, ib, ic) {
-  const ax = data[ia * 4];
-  const ay = data[ia * 4 + 1];
-  const az = data[ia * 4 + 2];
-  const bx = data[ib * 4] - ax;
-  const by = data[ib * 4 + 1] - ay;
-  const bz = data[ib * 4 + 2] - az;
-  const cx = data[ic * 4] - ax;
-  const cy = data[ic * 4 + 1] - ay;
-  const cz = data[ic * 4 + 2] - az;
-  const nx = by * cz - bz * cy;
-  const ny = bz * cx - bx * cz;
-  const nz = bx * cy - by * cx;
+  const ax = data[ia * 4], ay = data[ia * 4 + 1], az = data[ia * 4 + 2];
+  const bx = data[ib * 4] - ax, by = data[ib * 4 + 1] - ay, bz = data[ib * 4 + 2] - az;
+  const cx = data[ic * 4] - ax, cy = data[ic * 4 + 1] - ay, cz = data[ic * 4 + 2] - az;
+  const nx = by * cz - bz * cy, ny = bz * cx - bx * cz, nz = bx * cy - by * cx;
   return Math.sqrt(nx * nx + ny * ny + nz * nz) / 2;
 }
 
 /**
- * FaceParticles — 24k частици, оркестрирани в два режима:
- *  - Aura (modeTarget=0): 6 emotion формации, from/to attribute rewrite при
- *    смяна на емоция (с mid-morph retargeting за безшевни any→any преходи)
- *  - Mirror (modeTarget=1): истинска 1:1 повърхност — barycentric семплиране
- *    върху 880-те триъгълника на живия MediaPipe face mesh (DataTexture)
+ * FaceParticles — Mirror-only particle аватар. Живото лице се реконструира
+ * barycentric върху MediaPipe mesh-а; avatarRef.deform преоформя формата на
+ * лицето (все още твоето лице), а accessory добавя частици на герой. Цветът
+ * следва емоцията (ако emotionColorRef е ON) или фиксирания цвят на аватара.
  */
-export function FaceParticles({ modeTarget, emotionRef, landmarksBufRef, landmarkStampRef }) {
+export function FaceParticles({ emotionRef, landmarksBufRef, landmarkStampRef, avatarRef, emotionColorRef }) {
   const { gl } = useThree();
 
-  // ── Bake на геометрията (веднъж)
-  const { geometry, formations } = useMemo(() => {
-    const samples = makeSharedSamples(PARTICLE_COUNT);
-    const formations = {};
-    for (const [emotion, params] of Object.entries(EMOTION_FACE_PARAMS)) {
-      formations[emotion] = buildFaceFormation(params, samples);
-    }
-    const ambient = buildAmbient(PARTICLE_COUNT);
-    const jitter = buildJitter(PARTICLE_COUNT);
-    // Начално binding: равномерно по триъгълници (малките триъгълници около
-    // очи/устни излизат по-плътни → фичърите се четат). След първата
-    // детекция се прави еднократен 60/40 area-weighted rebind за по-
-    // равномерна кожа при запазен акцент върху фичърите.
-    const { tri, bary } = buildTriangleBinding(PARTICLE_COUNT, FACE_TRIANGULATION);
+  const { geometry } = useMemo(() => {
+    const samples = makeSharedSamples(FACE_COUNT);
+    const neutral = buildFaceFormation(EMOTION_FACE_PARAMS.neutral, samples);
+    const ambient = buildAmbient(FACE_COUNT);
+    const jitter = buildJitter(FACE_COUNT);
+    const { tri, bary } = buildTriangleBinding(FACE_COUNT, FACE_TRIANGULATION);
 
-    const seeds = new Float32Array(PARTICLE_COUNT);
-    for (let i = 0; i < PARTICLE_COUNT; i++) seeds[i] = Math.random();
+    // Пълни буфери за FACE + ACCESSORY блоковете
+    const position = new Float32Array(TOTAL_COUNT * 3);
+    const posTo = new Float32Array(TOTAL_COUNT * 3);
+    const ambientA = new Float32Array(TOTAL_COUNT * 3);
+    const jitterA = new Float32Array(TOTAL_COUNT * 3);
+    const triA = new Float32Array(TOTAL_COUNT * 3);
+    const baryA = new Float32Array(TOTAL_COUNT * 3);
+    const seeds = new Float32Array(TOTAL_COUNT);
+    const accFlag = new Float32Array(TOTAL_COUNT);
+
+    position.set(neutral, 0);
+    posTo.set(neutral, 0);
+    ambientA.set(ambient, 0);
+    jitterA.set(jitter, 0);
+    triA.set(tri, 0);
+    baryA.set(bary, 0);
+    for (let i = 0; i < FACE_COUNT; i++) seeds[i] = Math.random();
+
+    // Accessory блок: скрит по подразбиране (зад far-равнината), ambient scatter
+    for (let i = FACE_COUNT; i < TOTAL_COUNT; i++) {
+      const j = i * 3;
+      position[j] = 0; position[j + 1] = 0; position[j + 2] = -1000;
+      ambientA[j] = (Math.random() - 0.5) * 12;
+      ambientA[j + 1] = (Math.random() - 0.5) * 12;
+      ambientA[j + 2] = (Math.random() - 0.5) * 6;
+      seeds[i] = Math.random();
+      accFlag[i] = 1;
+    }
 
     const geo = new THREE.BufferGeometry();
-    // position играе ролята на aPosFrom — стартираме от neutral
-    geo.setAttribute('position', new THREE.BufferAttribute(formations.neutral.slice(), 3));
-    geo.setAttribute('aPosTo', new THREE.BufferAttribute(formations.neutral.slice(), 3));
-    geo.setAttribute('aAmbient', new THREE.BufferAttribute(ambient, 3));
-    geo.setAttribute('aJitter', new THREE.BufferAttribute(jitter, 3));
-    geo.setAttribute('aTri', new THREE.BufferAttribute(tri, 3));
-    geo.setAttribute('aBary', new THREE.BufferAttribute(bary, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+    geo.setAttribute('aPosTo', new THREE.BufferAttribute(posTo, 3));
+    geo.setAttribute('aAmbient', new THREE.BufferAttribute(ambientA, 3));
+    geo.setAttribute('aJitter', new THREE.BufferAttribute(jitterA, 3));
+    geo.setAttribute('aTri', new THREE.BufferAttribute(triA, 3));
+    geo.setAttribute('aBary', new THREE.BufferAttribute(baryA, 3));
     geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
-    return { geometry: geo, formations };
+    geo.setAttribute('aAccessory', new THREE.BufferAttribute(accFlag, 1));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 60);
+    return { geometry: geo };
   }, []);
 
-  // ── Landmark DataTexture (нулирана — mirror клонът чете безопасно преди детекция)
   const landmarkTex = useMemo(() => {
     const data = new Float32Array(LM_COUNT * 4);
     const tex = new THREE.DataTexture(data, LM_COUNT, 1, THREE.RGBAFormat, THREE.FloatType);
-    tex.minFilter = THREE.NearestFilter; // ЗАДЪЛЖИТЕЛНО: Linear+Float = мълчаливо нули
+    tex.minFilter = THREE.NearestFilter;
     tex.magFilter = THREE.NearestFilter;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     tex.generateMipmaps = false;
@@ -100,119 +106,104 @@ export function FaceParticles({ modeTarget, emotionRef, landmarksBufRef, landmar
     return tex;
   }, []);
 
-  // Ръчно disposal — текстури в uniforms НЕ се release-ват от R3F автоматично
   useEffect(() => () => landmarkTex.dispose(), [landmarkTex]);
 
-  const uniforms = useMemo(
-    () => ({
+  const uniforms = useMemo(() => {
+    const a0 = AVATAR_MAP[DEFAULT_AVATAR];
+    return {
       uTime: { value: 0 },
-      uMode: { value: 0 },
+      uMode: { value: 1 }, // винаги Mirror
       uBlend: { value: 1 },
       uPresence: { value: 0 },
       uColor: { value: new THREE.Color(EMOTION_HEX.neutral) },
+      uGlow: { value: a0.glow },
+      uSizeMul: { value: a0.particleSize },
       uLandmarks: { value: landmarkTex },
       uSize: { value: 26.0 },
       uPixelRatio: { value: gl.getPixelRatio() },
-    }),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  }, []);
 
-  // ── Morph state (в refs, не React state)
-  const morphState = useRef({
-    currentEmotion: 'neutral',
-    lastSwapAt: 0,
+  const st = useRef({
     mappingState: createMappingState(),
     stableFrames: 0,
     rebindDone: false,
+    prevAccessory: 'none',
   });
 
   useFrame((state, delta) => {
-    const st = morphState.current;
-    const elapsed = state.clock.elapsedTime % 3600;
-    uniforms.uTime.value = elapsed;
+    const s = st.current;
+    uniforms.uTime.value = state.clock.elapsedTime % 3600;
     uniforms.uPixelRatio.value = gl.getPixelRatio();
 
-    // ── Aura: blend анимация + emotion swap (debounce ≥600ms)
-    uniforms.uBlend.value = Math.min(1, uniforms.uBlend.value + delta / 0.9);
-
     const emotion = emotionRef?.current ?? 'neutral';
-    const now = performance.now();
-    if (
-      emotion !== st.currentEmotion &&
-      formations[emotion] &&
-      now - st.lastSwapAt > SWAP_DEBOUNCE_MS
-    ) {
-      // Mid-morph retarget: замрази текущата eased поза като нова from-позиция,
-      // после насочи to-масива към новата формация — any→any без телепорт.
-      const fromArr = geometry.attributes.position.array;
-      const toArr = geometry.attributes.aPosTo.array;
-      const b = easeBlend(uniforms.uBlend.value);
-      const next = formations[emotion];
-      for (let i = 0; i < fromArr.length; i++) {
-        fromArr[i] = fromArr[i] + (toArr[i] - fromArr[i]) * b;
-        toArr[i] = next[i];
-      }
-      geometry.attributes.position.needsUpdate = true;
-      geometry.attributes.aPosTo.needsUpdate = true;
-      uniforms.uBlend.value = 0;
-      st.currentEmotion = emotion;
-      st.lastSwapAt = now;
-    }
+    const avatar = avatarRef?.current || AVATAR_MAP[DEFAULT_AVATAR];
+    uniforms.uSizeMul.value = avatar.particleSize ?? 1;
+    uniforms.uGlow.value = avatar.glow ?? 0.4;
 
-    // ── Mirror: landmark mapping → texture (само при свежи данни)
+    const now = performance.now();
     const stamp = landmarkStampRef?.current ?? 0;
     const fresh = stamp > 0 && now - stamp < PRESENCE_TIMEOUT_MS;
+
     if (fresh && landmarksBufRef?.current) {
-      mapLandmarksToWorld(landmarksBufRef.current, landmarkTex.image.data, st.mappingState, delta);
+      mapLandmarksToWorld(landmarksBufRef.current, landmarkTex.image.data, s.mappingState, delta);
+
+      // ── Деформация на формата на лицето (no-op за "Real") ──
+      const data = landmarkTex.image.data;
+      const anchors = computeAnchors(data);
+      if (avatar.deform) deformLandmarks(data, avatar.deform, anchors);
       landmarkTex.needsUpdate = true;
 
-      // Еднократен area-weighted rebind: след стабилна детекция изчисли
-      // реалните площи на триъгълниците и пре-семплирай 60% от binding-а
-      // пропорционално на площ (равномерна кожа) + 40% равномерно по
-      // триъгълници (акцент върху фините фичъри с малки триъгълници).
-      if (!st.rebindDone) {
-        st.stableFrames++;
-        if (st.stableFrames >= REBIND_AFTER_FRAMES) {
-          const data = landmarkTex.image.data;
+      // ── Аксесоари на героя (закотвени към главата) ──
+      const acc = avatar.accessory || 'none';
+      const posAttr = geometry.attributes.position;
+      if (acc !== 'none') {
+        updateAccessories(posAttr.array, FACE_COUNT, acc, anchors);
+        posAttr.needsUpdate = true;
+      } else if (s.prevAccessory !== 'none') {
+        // Еднократно скриване при връщане към лице без аксесоар
+        const arr = posAttr.array;
+        for (let i = FACE_COUNT; i < TOTAL_COUNT; i++) arr[i * 3 + 2] = -1000;
+        posAttr.needsUpdate = true;
+      }
+      s.prevAccessory = acc;
+
+      // ── Еднократен area-weighted rebind (равномерна кожа) ──
+      if (!s.rebindDone) {
+        s.stableFrames++;
+        if (s.stableFrames >= REBIND_AFTER_FRAMES) {
           const triCount = FACE_TRIANGULATION.length / 3;
           const areas = new Float32Array(triCount);
           for (let t = 0; t < triCount; t++) {
             areas[t] = triAreaFromTex(
-              data,
-              FACE_TRIANGULATION[t * 3],
-              FACE_TRIANGULATION[t * 3 + 1],
-              FACE_TRIANGULATION[t * 3 + 2]
+              data, FACE_TRIANGULATION[t * 3], FACE_TRIANGULATION[t * 3 + 1], FACE_TRIANGULATION[t * 3 + 2]
             );
           }
-          const areaCount = Math.floor(PARTICLE_COUNT * 0.6);
-          const { tri: triA, bary: baryA } = buildTriangleBinding(
-            areaCount, FACE_TRIANGULATION, 555, areas
-          );
-          const triArr = geometry.attributes.aTri.array;
-          const baryArr = geometry.attributes.aBary.array;
-          triArr.set(triA, 0);
-          baryArr.set(baryA, 0);
+          const areaCount = Math.floor(FACE_COUNT * 0.6);
+          const { tri: triB, bary: baryB } = buildTriangleBinding(areaCount, FACE_TRIANGULATION, 555, areas);
+          geometry.attributes.aTri.array.set(triB, 0);
+          geometry.attributes.aBary.array.set(baryB, 0);
           geometry.attributes.aTri.needsUpdate = true;
           geometry.attributes.aBary.needsUpdate = true;
-          st.rebindDone = true;
+          s.rebindDone = true;
         }
       }
     }
 
-    // ── Damped uniforms
-    uniforms.uMode.value = THREE.MathUtils.damp(uniforms.uMode.value, modeTarget, 4, delta);
-
-    // Presence: асиметрично damping (бързо появяване, бавно изчезване)
+    // Presence: бързо появяване, бавно изчезване
     const presenceTarget = fresh ? 1 : 0;
     const lambda = presenceTarget > uniforms.uPresence.value ? 2.5 : 1.0;
-    uniforms.uPresence.value = THREE.MathUtils.damp(
-      uniforms.uPresence.value, presenceTarget, lambda, delta
-    );
+    uniforms.uPresence.value = THREE.MathUtils.damp(uniforms.uPresence.value, presenceTarget, lambda, delta);
 
-    // Цвят по емоция (или приглушен, ако няма лице)
-    const targetColor = fresh ? EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral : IDLE_COLOR;
-    uniforms.uColor.value.lerp(targetColor, 1 - Math.exp(-delta / 0.4));
+    // Цвят: емоция (ако е включено) или фиксиран цвят на аватара
+    let target;
+    if (emotionColorRef?.current) {
+      target = fresh ? EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral : IDLE_COLOR;
+    } else {
+      target = avatar.fixedColorObj || EMOTION_COLORS.neutral;
+    }
+    uniforms.uColor.value.lerp(target, 1 - Math.exp(-delta / 0.4));
   });
 
   return (

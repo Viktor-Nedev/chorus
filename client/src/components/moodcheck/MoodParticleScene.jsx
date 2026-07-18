@@ -7,11 +7,13 @@ import { FaceParticles } from './FaceParticles';
  * onSnapshotReady получава функция, връщаща PNG dataURL на текущия кадър.
  */
 export function MoodParticleScene({
-  modeTarget,
   emotionRef,
   landmarksBufRef,
   landmarkStampRef,
+  avatarRef,
+  emotionColorRef,
   onSnapshotReady,
+  onCanvasReady,
 }) {
   return (
     <Canvas
@@ -22,20 +24,22 @@ export function MoodParticleScene({
         alpha: false,
         stencil: false,
         powerPreference: 'high-performance',
-        preserveDrawingBuffer: true, // за snapshot
+        preserveDrawingBuffer: true, // за snapshot + captureStream запис
       }}
       camera={{ fov: 50, position: [0, 0, 7], near: 0.1, far: 30 }}
       style={{ pointerEvents: 'none' }}
       onCreated={({ gl }) => {
         gl.setClearColor('#050505', 1);
         onSnapshotReady?.(() => gl.domElement.toDataURL('image/png'));
+        onCanvasReady?.(gl.domElement);
       }}
     >
       <FaceParticles
-        modeTarget={modeTarget}
         emotionRef={emotionRef}
         landmarksBufRef={landmarksBufRef}
         landmarkStampRef={landmarkStampRef}
+        avatarRef={avatarRef}
+        emotionColorRef={emotionColorRef}
       />
     </Canvas>
   );

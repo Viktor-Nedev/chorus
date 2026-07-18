@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { EMOTION_HEX, EMOTION_CONFIGS } from '../constants/emotions';
 
 // Аватар: инициали върху цвят, изведен от username-а (детерминистичен hue)
 function avatarHue(name) {
@@ -41,6 +42,7 @@ export function Profile({ navigate }) {
   const [stats, setStats] = useState(null);
   const [works, setWorks] = useState([]);
   const [community, setCommunity] = useState([]);
+  const [moodSessions, setMoodSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -51,8 +53,16 @@ export function Profile({ navigate }) {
         fetchGallery().catch(() => []),
       ]);
       setStats(statsRes);
-      setWorks(gallery.filter((a) => a.userId === user?.id));
+      const mine = gallery.filter((a) => a.userId === user?.id);
+      setWorks(mine);
       setCommunity(gallery.slice(0, 8));
+      // Mood over time — последните moodcheck сесии (най-новите вдясно)
+      setMoodSessions(
+        mine
+          .filter((a) => a.mode === 'moodcheck' && a.dominantEmotion)
+          .slice(0, 14)
+          .reverse()
+      );
     } finally {
       setLoading(false);
     }
@@ -170,6 +180,30 @@ export function Profile({ navigate }) {
             );
           })}
         </div>
+
+        {/* ── Mood over time (от Mirror сесиите) ── */}
+        {moodSessions.length > 0 && (
+          <>
+            <h2 className="mt-12 mb-4 text-xs uppercase tracking-[0.3em] text-gray-500">Mood over time</h2>
+            <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+              <div className="flex items-end gap-2 h-24">
+                {moodSessions.map((s) => (
+                  <div key={s.id} className="flex-1 flex flex-col items-center gap-1.5 group">
+                    <div
+                      className="w-full rounded-t-md transition-all"
+                      style={{ height: '100%', background: EMOTION_HEX[s.dominantEmotion] || EMOTION_HEX.neutral, opacity: 0.85 }}
+                      title={`${EMOTION_CONFIGS[s.dominantEmotion]?.label} · ${new Date(s.createdAt).toLocaleDateString()}`}
+                    />
+                    <span className="text-sm">{EMOTION_CONFIGS[s.dominantEmotion]?.emoji}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] text-gray-600">
+                Dominant mood per Mirror session — oldest to newest. Open Mirror mode to add a new check-in.
+              </p>
+            </div>
+          </>
+        )}
 
         {/* ── My works ── */}
         <div className="mt-12 mb-4 flex items-center justify-between">

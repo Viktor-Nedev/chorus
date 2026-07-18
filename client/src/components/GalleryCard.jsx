@@ -8,7 +8,7 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
   return (
     <div className="energy-border group rounded-xl bg-ink-soft/60 border border-ink-line overflow-hidden transition-colors duration-500 animate-fade-in">
       <button onClick={onOpen} className="block w-full text-left">
-        <div className="aspect-video bg-ink overflow-hidden">
+        <div className="relative aspect-video bg-ink overflow-hidden">
           {artwork.imageData ? (
             <img
               src={artwork.imageData}
@@ -19,6 +19,13 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
             <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl">
               ✦
             </div>
+          )}
+          {artwork.videoUrl && (
+            <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="w-11 h-11 rounded-full bg-black/50 border border-white/40 backdrop-blur flex items-center justify-center text-white text-lg">
+                ▶
+              </span>
+            </span>
           )}
         </div>
         <div className="p-5">

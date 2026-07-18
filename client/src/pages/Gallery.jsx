@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+
 export function Gallery({ navigate }) {
   const { fetchGallery, fetchArtwork, deleteArtwork, loading } = useArtworkStore();
   const [artworks, setArtworks] = useState([]);
@@ -156,8 +158,19 @@ export function Gallery({ navigate }) {
             className="max-w-3xl w-full max-h-full overflow-y-auto rounded-2xl bg-ink-soft border border-ink-line animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            {selected.imageData && (
-              <img src={selected.imageData} alt={selected.title} className="w-full rounded-t-2xl" />
+            {selected.videoUrl ? (
+              <video
+                src={`${SERVER_URL}${selected.videoUrl}`}
+                poster={selected.imageData}
+                controls
+                autoPlay
+                loop
+                className="w-full rounded-t-2xl bg-black"
+              />
+            ) : (
+              selected.imageData && (
+                <img src={selected.imageData} alt={selected.title} className="w-full rounded-t-2xl" />
+              )
             )}
             <div className="p-6">
               <div className="flex items-start justify-between gap-4">
@@ -198,8 +211,8 @@ export function Gallery({ navigate }) {
 
               <div className="mt-6 flex gap-3">
                 <a
-                  href={selected.imageData}
-                  download={`${selected.title || 'chorus'}.png`}
+                  href={selected.videoUrl ? `${SERVER_URL}${selected.videoUrl}` : selected.imageData}
+                  download={`${selected.title || 'chorus'}.${selected.videoUrl ? 'webm' : 'png'}`}
                   className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500 transition"
                 >
                   Download

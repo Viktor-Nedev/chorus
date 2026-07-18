@@ -3,6 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { nanoid } = require('nanoid');
 const { requireAuth } = require('../middleware/auth');
+const { deleteVideoByUrl, VIDEO_URL_RE } = require('./videos');
 
 const router = express.Router();
 const GALLERY_DIR = path.join(__dirname, '../gallery');
@@ -54,11 +55,26 @@ router.get('/:id', async (req, res) => {
 // POST запази нова творба (изисква акаунт — авторът идва от токена)
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { title, description, imageData, emotionHistory, poem, duration, mode, totalUsers, sceneJson } =
+    const { title, description, imageData, emotionHistory, poem, duration, mode, totalUsers, sceneJson, videoUrl } =
       req.body || {};
 
     if (!imageData || typeof imageData !== 'string' || !imageData.startsWith('data:image/')) {
       return res.status(400).json({ error: 'imageData is required' });
+    }
+    if (videoUrl !== undefined && !VIDEO_URL_RE.test(videoUrl)) {
+      return res.status(400).json({ error: 'Bad videoUrl' });
+    }
+
+    // Доминираща емоция — изчислена веднъж, за да е налична в олекотения
+    // list (който маха тежкото emotionHistory) за Profile mood-over-time.
+    let dominantEmotion;
+    if (Array.isArray(emotionHistory) && emotionHistory.length) {
+      const counts = {};
+      for (const e of emotionHistory) {
+        const em = e?.emotion;
+        if (em) counts[em] = (counts[em] || 0) + 1;
+      }
+      dominantEmotion = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
     }
     // 3D сцена (SCULPT) — пази се за re-edit; ограничи размера
     if (sceneJson !== undefined && JSON.stringify(sceneJson).length > 3_000_000) {
@@ -79,6 +95,8 @@ router.post('/', requireAuth, async (req, res) => {
       totalUsers: Number(totalUsers) || undefined,
       mode: ['collective', 'moodcheck', 'sculpt'].includes(mode) ? mode : 'solo',
       sceneJson: sceneJson || undefined,
+      videoUrl: videoUrl || undefined,
+      dominantEmotion,
       createdAt: new Date().toISOString(),
     };
 
@@ -99,6 +117,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (artwork.userId && artwork.userId !== req.user.id) {
       return res.status(403).json({ error: 'You can only delete your own artwork' });
     }
+    if (artwork.videoUrl) deleteVideoByUrl(artwork.videoUrl);
     await fs.unlink(file);
     res.json({ success: true });
   } catch {

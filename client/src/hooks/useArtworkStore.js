@@ -57,6 +57,20 @@ export function useArtworkStore() {
     return await res.json();
   }, [authHeaders]);
 
+  // Качва webm blob → { url }. Реферира се от gallery entry чрез videoUrl.
+  const uploadVideo = useCallback(
+    async (blob) => {
+      const res = await fetch(`${SERVER_URL}/api/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'video/webm', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: blob,
+      });
+      if (!res.ok) throw new Error('Video upload failed');
+      return res.json();
+    },
+    [token]
+  );
+
   const generatePoem = useCallback(async (payload) => {
     const res = await fetch(`${SERVER_URL}/api/poem`, {
       method: 'POST',
@@ -68,5 +82,5 @@ export function useArtworkStore() {
     return data.poem;
   }, []);
 
-  return { saveArtwork, fetchGallery, fetchArtwork, deleteArtwork, generatePoem, saving, loading };
+  return { saveArtwork, fetchGallery, fetchArtwork, deleteArtwork, uploadVideo, generatePoem, saving, loading };
 }

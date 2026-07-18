@@ -18,34 +18,46 @@ export function classifyEmotionFromBlendshapes(blendshapes) {
   const eyeWide = (get('eyeWideLeft') + get('eyeWideRight')) / 2;
   const eyeSquint = (get('eyeSquintLeft') + get('eyeSquintRight')) / 2;
   const jawOpen = get('jawOpen');
+  const jawForward = get('jawForward');
   const cheekSquint = (get('cheekSquintLeft') + get('cheekSquintRight')) / 2;
   const noseSneer = (get('noseSneerLeft') + get('noseSneerRight')) / 2;
   const mouthPress = (get('mouthPressLeft') + get('mouthPressRight')) / 2;
   const mouthPucker = get('mouthPucker');
 
+  // "Furrow" — вежди свити НАДОЛУ И НАВЪТРЕ (browDown, но БЕЗ browInnerUp).
+  // Това е най-чистият сигнал за гняв и го отделя от фокус/изненада.
+  const furrow = Math.max(0, browDown - browInnerUp * 0.6);
+
   const scores = {
-    // Усмивката е силен сигнал сама по себе си — но да не изяжда всичко,
-    // изисква реална усмивка (~0.35+), а не остатъчен шум
+    // Усмивката е силен сигнал сама по себе си — но да не изяжда всичко.
     happy: smile * 1.0 + cheekSquint * 0.35 - browDown * 0.3,
 
-    // Изненада: отворена уста + вдигнати вежди + широки очи (всеки от
-    // трите може да я задейства при достатъчна сила)
-    surprised: jawOpen * 0.75 + (browInnerUp + browOuterUp) * 0.45 + eyeWide * 0.9 - smile * 0.4,
+    // Изненада: отворена уста + вдигнати вежди + широки очи.
+    surprised:
+      jawOpen * 0.7 + (browInnerUp + browOuterUp) * 0.45 + eyeWide * 0.9 - smile * 0.4 - browDown * 0.6,
 
-    // Гняв: смръщени вежди са ключът (диапазон ~0.2-0.6 → тегло 1.5)
+    // Гняв — обогатен: свъсване (furrow) е ядрото, плюс носово сбръчкване,
+    // стиснати устни, издадена челюст, присвити очи/бузи. БЕЗ наказание за
+    // отворена уста (викането също е гняв). По-ниска граница за задействане.
     angry:
-      browDown * 1.5 + noseSneer * 0.7 + mouthPress * 0.4 + eyeSquint * 0.25 - smile * 0.6 - jawOpen * 0.3,
+      furrow * 1.9 +
+      browDown * 0.5 +
+      noseSneer * 1.1 +
+      mouthPress * 0.9 +
+      jawForward * 0.7 +
+      eyeSquint * 0.3 +
+      cheekSquint * 0.25 -
+      smile * 1.0 -
+      browInnerUp * 0.3,
 
-    // Тъга: увиснали ъгли на устата (слаб сигнал ~0.1-0.3 → тегло 2.2)
-    // и/или вдигнати вътрешни вежди без усмивка
-    sad: frown * 2.2 + browInnerUp * 0.55 + mouthPucker * 0.3 - smile * 0.8 - jawOpen * 0.4,
+    // Тъга: увиснали ъгли на устата и/или вдигнати вътрешни вежди без усмивка.
+    sad: frown * 2.2 + browInnerUp * 0.55 + mouthPucker * 0.3 - smile * 0.8 - jawOpen * 0.4 - browDown * 0.4,
 
-    // Фокус: присвити очи без мръщене на устата (припокрива се с гняв —
-    // гневът печели при силен browDown заради по-високото си тегло там)
-    focused: eyeSquint * 0.85 + browDown * 0.35 - jawOpen * 0.5 - smile * 0.4 - frown * 0.8,
+    // Фокус: присвити очи БЕЗ силно свъсване (иначе печели гневът).
+    focused: eyeSquint * 0.9 - furrow * 1.2 - jawOpen * 0.5 - smile * 0.4 - frown * 0.8,
 
-    // Неутрален праг — емоция се регистрира само ако надмине този под
-    neutral: 0.3,
+    // Неутрален праг — по-нисък, за да не потиска умерения гняв/фокус.
+    neutral: 0.22,
   };
 
   let best = 'neutral';

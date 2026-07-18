@@ -457,10 +457,10 @@ export function Landing({ navigate }) {
                 />
                 <ModePanel
                   index="03"
-                  title="MOOD CHECK"
-                  tagline="See your mood as light"
+                  title="MIRROR"
+                  tagline="Your face as a particle avatar"
                   accent="violet"
-                  copy="Watch particles become a face that mirrors your mood — or your own face rebuilt from thousands of points of light."
+                  copy="Your face rebuilt live from thousands of points of light — pick a look, present it as an avatar in a call, record clips, and track your mood over time."
                   onClick={goto('moodcheck')}
                 />
                 <ModePanel

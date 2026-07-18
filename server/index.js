@@ -11,6 +11,7 @@ const webforgeRouter = require('./routes/webforge');
 const authRouter = require('./routes/auth');
 const { router: competitionsRouter } = require('./routes/competitions');
 const { router: usersRouter, recordBattleWin, recordArenaRounds } = require('./routes/users');
+const { router: videosRouter, serveVideo } = require('./routes/videos');
 const { verifyToken } = require('./middleware/auth');
 const { judgeRound } = require('./services/arenaJudge');
 
@@ -40,6 +41,8 @@ const io = new Server(httpServer, {
 });
 
 app.use(cors());
+// Видео upload: суров webm body ПРЕДИ express.json (иначе се поглъща/отхвърля)
+app.use('/api/videos', express.raw({ type: 'video/webm', limit: '45mb' }), videosRouter);
 app.use(express.json({ limit: '10mb' })); // за imageData (base64 PNG)
 app.use('/api/poem', poemRouter);
 app.use('/api/gallery', galleryRouter);
@@ -47,6 +50,8 @@ app.use('/api/webforge', webforgeRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/competitions', competitionsRouter);
 app.use('/api/users', usersRouter);
+// Static сервиране на записаните видеа
+app.get('/videos/:id.webm', (req, res) => serveVideo({ params: { id: req.params.id } }, res));
 // Static хостинг за генерирани WebForge проекти без backend
 app.use('/hosted/:id/', (req, res, next) => {
   if (!/^[A-Za-z0-9_-]{1,32}$/.test(req.params.id)) return res.status(400).end();

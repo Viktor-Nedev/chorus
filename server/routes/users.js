@@ -5,11 +5,50 @@ const fs = require('fs').promises;
 const path = require('path');
 const { requireAuth } = require('../middleware/auth');
 const { loadAll: loadCompetitions } = require('./competitions');
+const { generateAvatarParams } = require('../services/avatarAi');
 
 const router = express.Router();
 const GALLERY_DIR = path.join(__dirname, '../gallery');
 const BATTLE_WINS_FILE = path.join(__dirname, '../users/battleWins.json');
 const POINTS_FILE = path.join(__dirname, '../users/points.json');
+const AVATARS_FILE = path.join(__dirname, '../users/avatars.json');
+
+// ── Custom avatar параметри (per-account) ──
+const ACCESSORIES = ['none', 'catEars', 'horns', 'antenna', 'halo', 'whiskers'];
+function clampAvatar(raw = {}) {
+  const c = (v, lo, hi, dv) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dv;
+  };
+  const dm = raw.deform || {};
+  return {
+    label: raw.label ? String(raw.label).slice(0, 24) : 'My Custom',
+    deform: {
+      eye: c(dm.eye, 0.4, 2.2, 1),
+      faceLength: c(dm.faceLength, 0.6, 1.6, 1),
+      jaw: c(dm.jaw, 0.5, 1.6, 1),
+      cheek: c(dm.cheek, 0.3, 2.2, 1),
+      nose: c(dm.nose, 0.4, 2.0, 1),
+      eyeDepth: c(dm.eyeDepth, 0.5, 2.2, 1),
+    },
+    accessory: ACCESSORIES.includes(raw.accessory) ? raw.accessory : 'none',
+    particleSize: c(raw.particleSize, 0.6, 1.8, 1),
+    glow: c(raw.glow, 0, 1, 0.4),
+    fixedColor: /^#[0-9a-fA-F]{6}$/.test(raw.fixedColor || '') ? raw.fixedColor : '#8B7BFA',
+  };
+}
+
+async function loadAvatars() {
+  try {
+    return JSON.parse(await fs.readFile(AVATARS_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+async function saveAvatars(all) {
+  await fs.mkdir(path.dirname(AVATARS_FILE), { recursive: true }).catch(() => {});
+  await fs.writeFile(AVATARS_FILE, JSON.stringify(all, null, 2));
+}
 
 async function loadBattleWins() {
   try {
@@ -112,6 +151,41 @@ router.get('/stats', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Stats error:', err.message);
     res.status(500).json({ error: 'Could not load stats' });
+  }
+});
+
+// GET текущия custom avatar
+router.get('/avatar', requireAuth, async (req, res) => {
+  const all = await loadAvatars();
+  res.json({ avatar: all[req.user.id] || null });
+});
+
+// PUT записва custom avatar
+router.put('/avatar', requireAuth, async (req, res) => {
+  try {
+    const avatar = clampAvatar(req.body || {});
+    const all = await loadAvatars();
+    all[req.user.id] = avatar;
+    await saveAvatars(all);
+    res.json({ avatar });
+  } catch (err) {
+    console.error('Avatar save error:', err.message);
+    res.status(500).json({ error: 'Could not save avatar' });
+  }
+});
+
+// POST AI генерация на avatar параметри (от описание + опц. селфи)
+router.post('/avatar/ai', requireAuth, async (req, res) => {
+  try {
+    const { prompt, image } = req.body || {};
+    const raw = await generateAvatarParams({ prompt, image });
+    res.json({ avatar: clampAvatar(raw) });
+  } catch (err) {
+    if (err.code === 'quota_exceeded') {
+      return res.status(429).json({ error: 'quota_exceeded' });
+    }
+    console.error('Avatar AI error:', err.message);
+    res.status(500).json({ error: 'AI generation failed' });
   }
 });
 

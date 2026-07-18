@@ -7,3 +7,4 @@ server/generated/
 *.log
 server/users/
 server/competitions/
+server/videos/
