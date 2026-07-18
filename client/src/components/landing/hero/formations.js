@@ -157,7 +157,9 @@ const FORMATION_BUILDERS = {
 // Ред на формациите за главната пътуваща скулптура — обвързан със секциите
 // на страницата (Hero → About → Modes → Instruments → Gallery → Footer).
 // Съзнателно НЕ поставяме лице на 3-та позиция (Modes) — там е спиралата.
-const MAIN_SEQUENCE = ['wave', 'halo', 'spiral', 'figure', 'faceProfile', 'knot'];
+// Ред = секциите на Landing: Hero(wave) → About(halo) → Modes(spiral) →
+// Instruments(figure) → Footer(knot). faceProfile е резервен 6-ти слот.
+const MAIN_SEQUENCE = ['wave', 'halo', 'spiral', 'figure', 'knot', 'faceProfile'];
 
 function randomDir() {
   let dx = Math.random() * 2 - 1;

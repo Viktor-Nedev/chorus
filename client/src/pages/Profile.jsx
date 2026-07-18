@@ -40,6 +40,7 @@ export function Profile({ navigate }) {
   const { fetchGallery } = useArtworkStore();
   const [stats, setStats] = useState(null);
   const [works, setWorks] = useState([]);
+  const [community, setCommunity] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -51,6 +52,7 @@ export function Profile({ navigate }) {
       ]);
       setStats(statsRes);
       setWorks(gallery.filter((a) => a.userId === user?.id));
+      setCommunity(gallery.slice(0, 8));
     } finally {
       setLoading(false);
     }
@@ -195,7 +197,7 @@ export function Profile({ navigate }) {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {works.map((art) => (
               <GalleryCard
                 key={art.id}
@@ -205,6 +207,41 @@ export function Profile({ navigate }) {
               />
             ))}
           </div>
+        )}
+
+        {/* ── Latest from the community ── */}
+        {community.length > 0 && (
+          <>
+            <div className="mt-14 mb-4 flex items-center justify-between">
+              <h2 className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                Latest from the community
+              </h2>
+              <button
+                onClick={() => navigate('gallery')}
+                className="text-[11px] uppercase tracking-[0.2em] text-gray-500 hover:text-white transition"
+              >
+                Full archive →
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-16">
+              {community.map((art) => (
+                <button
+                  key={art.id}
+                  onClick={() => navigate('gallery')}
+                  title={`${art.title} — ${art.author}`}
+                  className="group aspect-square overflow-hidden rounded-lg border border-ink-line bg-ink-soft"
+                >
+                  {art.imageData && (
+                    <img
+                      src={art.imageData}
+                      alt={art.title}
+                      className="w-full h-full object-cover grayscale-[0.6] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

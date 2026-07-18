@@ -271,3 +271,59 @@ input[type='color']::-webkit-color-swatch {
   border: 2px solid rgb(var(--c-ink-line));
   border-radius: 8px;
 }
+
+/* ── Cinematic utilities (Landing v3) ── */
+
+/* Диагонален shine sweep върху mode картите */
+.shine-card {
+  position: relative;
+  overflow: hidden;
+}
+.shine-card::after {
+  content: '';
+  position: absolute;
+  inset: -60% auto auto -60%;
+  width: 60%;
+  height: 220%;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.07) 50%, transparent 70%);
+  transform: translateX(-140%) rotate(8deg);
+  transition: transform 0.9s ease;
+  pointer-events: none;
+}
+.shine-card:hover::after {
+  transform: translateX(400%) rotate(8deg);
+}
+
+/* Outline (ghost) типография за фонови надписи */
+.text-ghost-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.07);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Кинематографична винетка върху целия Landing */
+.cinema-vignette {
+  background: radial-gradient(ellipse 90% 75% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+/* Letterbox интро — CSS анимация (издръжлива на re-render-и) */
+@keyframes letterbox-out {
+  0% { transform: scaleY(1); }
+  100% { transform: scaleY(0); }
+}
+.letterbox-bar {
+  animation: letterbox-out 1.3s cubic-bezier(0.76, 0, 0.24, 1) 0.25s forwards;
+}
+
+/* Градиентен shift на имената в Instruments при hover */
+.instrument-name {
+  background-image: linear-gradient(90deg, #d9d9d9, #d9d9d9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: color 0.5s ease;
+}
+.group:hover .instrument-name {
+  background-image: linear-gradient(90deg, rgb(var(--accent-violet)), rgb(var(--accent-cyan)));
+  color: transparent;
+}
