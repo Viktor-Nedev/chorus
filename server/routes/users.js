@@ -5,7 +5,6 @@ const fs = require('fs').promises;
 const path = require('path');
 const { requireAuth } = require('../middleware/auth');
 const { loadAll: loadCompetitions } = require('./competitions');
-const { generateAvatarParams } = require('../services/avatarAi');
 
 const router = express.Router();
 const GALLERY_DIR = path.join(__dirname, '../gallery');
@@ -233,19 +232,6 @@ router.put('/avatar/cam', requireAuth, async (req, res) => {
   all[req.user.id] = entry;
   await saveAvatars(all);
   res.json({ camAvatarId: entry.camAvatarId });
-});
-
-// POST AI генерация на avatar параметри (от описание + опц. снимка)
-router.post('/avatar/ai', requireAuth, async (req, res) => {
-  try {
-    const { prompt, image } = req.body || {};
-    const raw = await generateAvatarParams({ prompt, image });
-    res.json({ avatar: clampAvatar(raw) });
-  } catch (err) {
-    if (err.code === 'quota_exceeded') return res.status(429).json({ error: 'quota_exceeded' });
-    console.error('Avatar AI error:', err.message);
-    res.status(500).json({ error: 'AI generation failed' });
-  }
 });
 
 module.exports = { router, recordBattleWin, recordArenaRounds };

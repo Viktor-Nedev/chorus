@@ -89,24 +89,6 @@ export function MoodCheck({ navigate }) {
     if (mine) applyAvatar(toRuntime(clampAvatar(mine)));
   };
 
-  // Селфи от камерата (за AI)
-  const getSelfie = useCallback(async () => {
-    const v = videoRef.current;
-    if (!v || v.readyState < 2) return undefined;
-    const c = document.createElement('canvas');
-    c.width = 320; c.height = 240;
-    const ctx = c.getContext('2d');
-    ctx.save(); ctx.scale(-1, 1); ctx.drawImage(v, -c.width, 0, c.width, c.height); ctx.restore();
-    return c.toDataURL('image/jpeg', 0.7);
-  }, []);
-
-  const aiGenerate = useCallback(async (prompt, image) => {
-    const res = await authFetch('/api/users/avatar/ai', { method: 'POST', body: JSON.stringify({ prompt, image }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'AI failed');
-    return data.avatar;
-  }, [authFetch]);
-
   const saveCustom = async (params) => {
     setSavingAvatar(true);
     try {
@@ -349,8 +331,6 @@ export function MoodCheck({ navigate }) {
           onSave={saveCustom}
           onCancel={() => { setShowCustom(false); selectAvatar(avatarId); }}
           onDrawInstead={() => setShowDraw(true)}
-          aiGenerate={aiGenerate}
-          getSelfie={getSelfie}
         />
       )}
 
