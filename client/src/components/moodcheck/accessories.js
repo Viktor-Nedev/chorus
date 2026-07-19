@@ -62,6 +62,14 @@ function buildTemplate(type) {
         Math.sin(a) * (R + Math.cos(ta) * tube),
       ]);
     }
+  } else if (type === 'tongue') {
+    // Изплезен език: широка лента под устата, стеснява се към върха.
+    // Дължината се управлява от jawOpen в updateAccessories (localY скалиране).
+    for (let i = 0; i < ACCESSORY_COUNT; i++) {
+      const tt = Math.random(); // 0 = корен, 1 = връх
+      const w = 0.22 * (1 - tt * 0.45);
+      set(i, [rand(-w, w), -0.55 - tt, 0.42 + tt * 0.12]);
+    }
   } else if (type === 'whiskers') {
     for (let i = 0; i < ACCESSORY_COUNT; i++) {
       const s = i % 2 === 0 ? -1 : 1;
@@ -95,7 +103,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
  * @param {string} type       тип аксесоар
  * @param {object} a          котвите от computeAnchors
  */
-export function updateAccessories(pos, baseIndex, type, a) {
+export function updateAccessories(pos, baseIndex, type, a, opts = {}) {
   const base = baseIndex * 3;
   if (!type || type === 'none' || !a) {
     for (let i = 0; i < ACCESSORY_COUNT; i++) {
@@ -106,6 +114,8 @@ export function updateAccessories(pos, baseIndex, type, a) {
     return;
   }
   const tpl = template(type);
+  // Езикът се показва/удължава с отварянето на устата
+  const tongueExt = type === 'tongue' ? 0.15 + Math.min(1, (opts.jaw || 0) * 2.2) * 0.85 : 1;
   const scale = a.eyeDist;
   // Базис на главата
   const right = norm([a.eyeR[0] - a.eyeL[0], a.eyeR[1] - a.eyeL[1], a.eyeR[2] - a.eyeL[2]]);
@@ -124,7 +134,9 @@ export function updateAccessories(pos, baseIndex, type, a) {
   const ox = a.centerX, oy = a.eyeCenterY, oz = (a.eyeL[2] + a.eyeR[2]) / 2;
 
   for (let i = 0; i < ACCESSORY_COUNT; i++) {
-    const lx = tpl[i * 3], ly = tpl[i * 3 + 1], lz = tpl[i * 3 + 2];
+    const lx = tpl[i * 3], lz = tpl[i * 3 + 2];
+    let ly = tpl[i * 3 + 1];
+    if (type === 'tongue') ly = -0.55 + (ly + 0.55) * tongueExt; // скалирай дължината
     const wx = ox + (_rx[0] * lx + _uy[0] * ly + _fz[0] * lz) * scale;
     const wy = oy + (_rx[1] * lx + _uy[1] * ly + _fz[1] * lz) * scale;
     const wz = oz + (_rx[2] * lx + _uy[2] * ly + _fz[2] * lz) * scale;

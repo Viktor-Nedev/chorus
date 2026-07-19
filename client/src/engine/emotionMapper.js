@@ -23,6 +23,8 @@ export function classifyEmotionFromBlendshapes(blendshapes) {
   const noseSneer = (get('noseSneerLeft') + get('noseSneerRight')) / 2;
   const mouthPress = (get('mouthPressLeft') + get('mouthPressRight')) / 2;
   const mouthPucker = get('mouthPucker');
+  const mouthShrugLower = get('mouthShrugLower');
+  const mouthLowerDown = (get('mouthLowerDownLeft') + get('mouthLowerDownRight')) / 2;
 
   // "Furrow" — вежди свити НАДОЛУ И НАВЪТРЕ (browDown, но БЕЗ browInnerUp).
   // Това е най-чистият сигнал за гняв и го отделя от фокус/изненада.
@@ -50,8 +52,19 @@ export function classifyEmotionFromBlendshapes(blendshapes) {
       smile * 1.0 -
       browInnerUp * 0.3,
 
-    // Тъга: увиснали ъгли на устата и/или вдигнати вътрешни вежди без усмивка.
-    sad: frown * 2.2 + browInnerUp * 0.55 + mouthPucker * 0.3 - smile * 0.8 - jawOpen * 0.4 - browDown * 0.4,
+    // Тъга — обогатена: увиснали ъгли (frown, слаб сигнал → голямо тегло),
+    // вдигнати вътрешни вежди (класика при тъга, но БЕЗ широки очи — иначе е
+    // изненада), нацупена долна устна (mouthShrugLower/LowerDown = цупене).
+    sad:
+      frown * 2.6 +
+      browInnerUp * 0.9 +
+      mouthShrugLower * 0.8 +
+      mouthLowerDown * 0.5 +
+      mouthPucker * 0.3 -
+      smile * 1.0 -
+      jawOpen * 0.4 -
+      browDown * 0.4 -
+      eyeWide * 0.8,
 
     // Фокус: присвити очи БЕЗ силно свъсване (иначе печели гневът).
     focused: eyeSquint * 0.9 - furrow * 1.2 - jawOpen * 0.5 - smile * 0.4 - frown * 0.8,

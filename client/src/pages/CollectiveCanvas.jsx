@@ -194,10 +194,23 @@ function Session({ socket, navigate }) {
   const myAudioLevelRef = useRef(0);
   const nicknameRef = useRef(sessionInfo?.nickname);
 
-  const { emotion, gesture, emotionRef, gestureRef, handPositionRef, detect } = useMediaPipe(
+  const { emotion, gesture, emotionRef, gestureRef, handPositionRef, landmarksBufRef, landmarkStampRef, detect } = useMediaPipe(
     videoRef,
     true
   );
+  const { authFetch } = useAuth();
+  const [camAvatar, setCamAvatar] = useState(null);
+  useEffect(() => {
+    authFetch('/api/users/avatar')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.camAvatarId) {
+          const a = (d.list || []).find((x) => x.id === d.camAvatarId);
+          if (a) setCamAvatar({ color: a.fixedColor || '#8B7BFA' });
+        }
+      })
+      .catch(() => {});
+  }, [authFetch]);
   const { initAudio, stopAudio, getAudioData } = useAudio();
   const { saveArtwork, generatePoem, saving } = useArtworkStore();
 
@@ -405,6 +418,9 @@ function Session({ socket, navigate }) {
           users={socket.users}
           myNickname={nicknameRef.current || 'you'}
           myColor={sessionInfo?.yourColor}
+          camAvatar={camAvatar}
+          landmarksBufRef={landmarksBufRef}
+          landmarkStampRef={landmarkStampRef}
         />
       )}
 

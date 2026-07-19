@@ -43,15 +43,34 @@ export function Profile({ navigate }) {
   const [works, setWorks] = useState([]);
   const [community, setCommunity] = useState([]);
   const [moodSessions, setMoodSessions] = useState([]);
+  const [avatars, setAvatars] = useState([]);
+  const [camAvatarId, setCamAvatarId] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const setCamChoice = async (id) => {
+    setCamAvatarId(id);
+    try {
+      await authFetch('/api/users/avatar/cam', { method: 'PUT', body: JSON.stringify({ camAvatarId: id }) });
+    } catch { /* ignore */ }
+  };
+  const removeAvatar = async (id) => {
+    try {
+      const res = await authFetch(`/api/users/avatar/${id}`, { method: 'DELETE' });
+      const d = await res.json();
+      setAvatars(d.list || []);
+      setCamAvatarId(d.camAvatarId || null);
+    } catch { /* ignore */ }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsRes, gallery] = await Promise.all([
+      const [statsRes, gallery, avatarRes] = await Promise.all([
         authFetch('/api/users/stats').then((r) => (r.ok ? r.json() : null)),
         fetchGallery().catch(() => []),
+        authFetch('/api/users/avatar').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
+      if (avatarRes) { setAvatars(avatarRes.list || []); setCamAvatarId(avatarRes.camAvatarId || null); }
       setStats(statsRes);
       const mine = gallery.filter((a) => a.userId === user?.id);
       setWorks(mine);
@@ -180,6 +199,31 @@ export function Profile({ navigate }) {
             );
           })}
         </div>
+
+        {/* ── My avatars (Mirror) ── */}
+        {avatars.length > 0 && (
+          <>
+            <h2 className="mt-12 mb-4 text-xs uppercase tracking-[0.3em] text-gray-500">My avatars</h2>
+            <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+              <p className="text-[11px] text-gray-500 mb-3">
+                Choose which particle avatar replaces your camera in Solo &amp; Collective (others will see it instead of your webcam).
+              </p>
+              <label className="flex items-center gap-3 py-1.5 cursor-pointer">
+                <input type="radio" name="cam" checked={!camAvatarId} onChange={() => setCamChoice(null)} className="accent-accent-violet" />
+                <span className="text-sm text-gray-200">📷 Real camera</span>
+              </label>
+              {avatars.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 py-1.5">
+                  <input type="radio" name="cam" checked={camAvatarId === a.id} onChange={() => setCamChoice(a.id)} className="accent-accent-violet" />
+                  <span className="w-4 h-4 rounded-full shrink-0" style={{ background: a.fixedColor }} />
+                  <span className="text-sm text-gray-200 flex-1 truncate">{a.emoji} {a.label}</span>
+                  <span className="text-[10px] text-gray-600 uppercase">{a.type}</span>
+                  <button onClick={() => removeAvatar(a.id)} className="text-gray-500 hover:text-red-400 text-xs">Delete</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* ── Mood over time (от Mirror сесиите) ── */}
         {moodSessions.length > 0 && (

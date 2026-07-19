@@ -46,6 +46,32 @@ const smooth = (t) => {
   return x * x * (3 - 2 * x);
 };
 
+// Усилено, видимо мигане: при blink свива очния регион вертикално към
+// центъра на окото (клепачите буквално се затварят). Прилага се ВИНАГИ,
+// включително за Real — MediaPipe движи клепачните точки само с милиметри,
+// което при 24k частици+jitter се губи; това го прави драматично.
+export function applyBlink(out, a, blinkL, blinkR) {
+  if (blinkL < 0.25 && blinkR < 0.25) return;
+  const sig = a.eyeDist * 0.55;
+  const sig2 = 2 * sig * sig;
+  for (let i = 0; i < 478; i++) {
+    const o = i * 4;
+    const x = out[o];
+    const y = out[o + 1];
+    const dl = (x - a.eyeL[0]) ** 2 + (y - a.eyeL[1]) ** 2;
+    const dr = (x - a.eyeR[0]) ** 2 + (y - a.eyeR[1]) ** 2;
+    const nearL = dl < dr;
+    const blink = nearL ? blinkL : blinkR;
+    if (blink < 0.25) continue;
+    const near = nearL ? a.eyeL : a.eyeR;
+    const w = Math.exp(-(nearL ? dl : dr) / sig2);
+    if (w < 0.002) continue;
+    // Свий вертикално към линията на окото, пропорционално на мигането
+    const k = Math.min(1, (blink - 0.25) / 0.55);
+    out[o + 1] = y - (y - near[1]) * w * k * 0.85;
+  }
+}
+
 export function deformLandmarks(out, dm, a) {
   if (isIdentity(dm)) return;
   const scale = a.eyeDist;

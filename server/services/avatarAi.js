@@ -4,7 +4,8 @@
 const { getClient } = require('./geminiService');
 
 const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-const ACCESSORIES = ['none', 'catEars', 'horns', 'antenna', 'halo', 'whiskers'];
+const ACCESSORIES = ['none', 'catEars', 'horns', 'antenna', 'halo', 'whiskers', 'tongue'];
+const CHARACTERS = ['cat', 'alien', 'skull', 'robot', 'devil', 'ghost'];
 
 function extractJson(text) {
   let t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
@@ -27,30 +28,31 @@ async function generateAvatarParams({ prompt, image }) {
   const img = image && inlineImage(image);
   if (img) parts.push(img);
   parts.push({
-    text: `You design a stylized PARTICLE FACE AVATAR that is applied on top of a
-user's LIVE tracked face (it always mimics their real expressions and head pose).
-You only choose deformation + accessory parameters — never geometry.
+    text: `You design a PARTICLE FACE AVATAR for a user. It always mimics the user's
+real expressions and head pose. Choose EITHER a full distinct character face OR a
+deformation of the user's own face.
 
-${img ? 'Look at the attached selfie for inspiration, and also consider this text: ' : ''}User request: "${(prompt || 'a cool avatar').slice(0, 300)}"
+${img ? 'An image of the desired avatar is attached — match the closest character base and colors. Also consider: ' : ''}User request: "${(prompt || 'a cool avatar').slice(0, 300)}"
 
-Return ONLY JSON with this exact shape (numbers are multipliers, 1 = unchanged):
+Return ONLY JSON:
 {
   "label": "short 1-3 word name",
-  "deform": {
-    "eye": 0.4..2.2,        // eye size
-    "faceLength": 0.6..1.6, // skull elongation
-    "jaw": 0.5..1.6,        // jaw width
-    "cheek": 0.3..2.2,      // cheek puff(>1)/hollow(<1)
-    "nose": 0.4..2.0,
-    "eyeDepth": 0.5..2.2    // sunken eyes(>1)
+  "emoji": "one emoji",
+  "type": "character" | "live",
+  "character": one of ${JSON.stringify(CHARACTERS)}   // REQUIRED if type=character
+  "deform": {                                         // used if type=live (multipliers, 1=unchanged)
+    "eye": 0.4..2.2, "faceLength": 0.6..1.6, "jaw": 0.5..1.6,
+    "cheek": 0.3..2.2, "nose": 0.4..2.0, "eyeDepth": 0.5..2.2
   },
-  "accessory": one of ${JSON.stringify(ACCESSORIES)},
+  "accessory": one of ${JSON.stringify(ACCESSORIES)}, // used if type=live
   "particleSize": 0.6..1.8,
   "glow": 0..1,
   "fixedColor": "#RRGGBB"
 }
-Pick values that match the request (e.g. "alien" → big eyes, long face, narrow jaw,
-antenna; "demon" → horns, red; "cat" → catEars, whiskers). No prose.`,
+Prefer type="character" when the request clearly matches one (cat, alien, skull,
+robot, demon→devil, ghost). Otherwise type="live" with deformation + accessory
+(e.g. big anime eyes → live, eye 1.8; vampire → live with fangs? use tongue/none).
+No prose.`,
   });
 
   let lastErr;

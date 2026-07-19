@@ -1,4 +1,5 @@
 import { EMOTION_CONFIGS, EMOTION_HEX, GESTURE_LABELS } from '../constants/emotions';
+import { ParticleCam } from './ParticleCam';
 
 // Emotion sidebar (Solo) / участници + състояние (Collective)
 export function EmotionSidebar({
@@ -9,6 +10,9 @@ export function EmotionSidebar({
   getWaveform,
   visible,
   onToggle,
+  camAvatar, // { color } когато потребителят е избрал particle аватар вместо камера
+  landmarksBufRef,
+  landmarkStampRef,
 }) {
   const config = EMOTION_CONFIGS[emotion] || EMOTION_CONFIGS.neutral;
   const gestureInfo = GESTURE_LABELS[gesture] || GESTURE_LABELS.NO_HAND;
@@ -47,8 +51,19 @@ export function EmotionSidebar({
         </div>
       </div>
 
-      {/* Live video preview */}
-      <LivePreview videoRef={videoRef} />
+      {/* Live preview — реална камера ИЛИ particle аватар */}
+      {camAvatar ? (
+        <ParticleCam
+          landmarksBufRef={landmarksBufRef}
+          landmarkStampRef={landmarkStampRef}
+          color={camAvatar.color}
+          width={160}
+          height={120}
+          className="w-full rounded-lg border border-ink-line bg-black"
+        />
+      ) : (
+        <LivePreview videoRef={videoRef} />
+      )}
 
       {/* Жест */}
       <div className="flex items-center gap-2 text-xs text-gray-300">

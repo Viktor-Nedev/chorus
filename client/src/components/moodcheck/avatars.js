@@ -1,54 +1,65 @@
 import * as THREE from 'three';
 
-// Avatar = параметричен набор върху ЖИВОТО лице на потребителя. deform
-// преоформя реалния face mesh (1 = без промяна), accessory добавя частици на
-// герой (уши/рога/...), закотвени към главата. Затова всеки аватар ВИНАГИ
-// имитира лицето ти. "Real" = чиста идентичност → 1:1 твоето лице.
-//
-// deform: eye (радиус на очите), faceLength (издължаване на черепа),
-// jaw (ширина на челюстта), cheek (издуване/хлътване на бузите),
-// nose (размер на носа), eyeDepth (хлътналост на очите по z).
+// Avatar типове:
+//  - 'live'      → живото ти лице 1:1 (Real) или с deform параметри (custom sliders)
+//  - 'character' → СЪВСЕМ различно процедурно лице (котка/череп/...), rigged от
+//                  живите ти изражения (уста/мигане/усмивка/поза на главата)
+//  - 'drawn'     → нарисуван от теб аватар (точки от щрихи), закачен за главата
+// Всички типове ВИНАГИ имитират потребителя.
 
 const IDENTITY = { eye: 1, faceLength: 1, jaw: 1, cheek: 1, nose: 1, eyeDepth: 1 };
-const d = (over) => ({ ...IDENTITY, ...over });
 
 export const AVATARS = [
-  // ── Лица (деформации на собственото ти лице) ──
-  { id: 'real', label: 'Real (1:1)', emoji: '🪞', family: 'face', deform: d({}), accessory: 'none', particleSize: 1.0, glow: 0.35, fixedColor: '#8B7BFA' },
-  { id: 'bigeyes', label: 'Big Eyes', emoji: '👀', family: 'face', deform: d({ eye: 1.7, jaw: 0.92 }), accessory: 'none', particleSize: 1.0, glow: 0.4, fixedColor: '#67E8F9' },
-  { id: 'alien', label: 'Alien', emoji: '👽', family: 'face', deform: d({ eye: 1.55, faceLength: 1.35, jaw: 0.68, nose: 0.7 }), accessory: 'antenna', particleSize: 0.95, glow: 0.5, fixedColor: '#64FFB4' },
-  { id: 'skull', label: 'Skull', emoji: '💀', family: 'face', deform: d({ eye: 0.85, eyeDepth: 1.8, cheek: 0.6, jaw: 1.1 }), accessory: 'none', particleSize: 0.95, glow: 0.3, fixedColor: '#E8E8EE' },
-  { id: 'chipmunk', label: 'Chipmunk', emoji: '🐿', family: 'face', deform: d({ cheek: 1.9, jaw: 1.15, eye: 1.1 }), accessory: 'none', particleSize: 1.0, glow: 0.4, fixedColor: '#FFD27F' },
-
-  // ── Герои (твоето лице + аксесоари) ──
-  { id: 'cat', label: 'Cat', emoji: '🐱', family: 'character', deform: d({ nose: 0.85, cheek: 1.1 }), accessory: 'catEars', particleSize: 1.0, glow: 0.45, fixedColor: '#FFB86B' },
-  { id: 'devil', label: 'Devil', emoji: '😈', family: 'character', deform: d({ jaw: 1.05 }), accessory: 'horns', particleSize: 1.0, glow: 0.55, fixedColor: '#FF5555' },
-  { id: 'robot', label: 'Robot', emoji: '🤖', family: 'character', deform: d({ jaw: 1.1 }), accessory: 'antenna', particleSize: 1.35, glow: 0.5, fixedColor: '#67E8F9' },
-  { id: 'angel', label: 'Angel', emoji: '😇', family: 'character', deform: d({}), accessory: 'halo', particleSize: 1.0, glow: 0.65, fixedColor: '#FFE3B0' },
+  { id: 'real', label: 'Real (1:1)', emoji: '🪞', type: 'live', deform: { ...IDENTITY }, accessory: 'none', particleSize: 1.0, glow: 0.35, fixedColor: '#8B7BFA' },
+  { id: 'cat', label: 'Cat', emoji: '🐱', type: 'character', character: 'cat', particleSize: 1.0, glow: 0.45, fixedColor: '#FFB86B' },
+  { id: 'alien', label: 'Alien', emoji: '👽', type: 'character', character: 'alien', particleSize: 1.0, glow: 0.5, fixedColor: '#64FFB4' },
+  { id: 'skull', label: 'Skull', emoji: '💀', type: 'character', character: 'skull', particleSize: 1.0, glow: 0.35, fixedColor: '#E8E8EE' },
+  { id: 'robot', label: 'Robot', emoji: '🤖', type: 'character', character: 'robot', particleSize: 1.1, glow: 0.5, fixedColor: '#67E8F9' },
+  { id: 'devil', label: 'Devil', emoji: '😈', type: 'character', character: 'devil', particleSize: 1.0, glow: 0.55, fixedColor: '#FF5555' },
+  { id: 'ghost', label: 'Ghost', emoji: '👻', type: 'character', character: 'ghost', particleSize: 1.0, glow: 0.6, fixedColor: '#BFDFFF' },
 ];
 
-// Runtime форма: hex → THREE.Color (нула алокации при live смяна)
 export function toRuntime(a) {
-  return { ...a, fixedColorObj: new THREE.Color(a.fixedColor) };
+  return { ...a, fixedColorObj: new THREE.Color(a.fixedColor || '#8B7BFA') };
 }
 
 export const AVATAR_MAP = Object.fromEntries(AVATARS.map((a) => [a.id, toRuntime(a)]));
 export const DEFAULT_AVATAR = 'real';
 
-export const ACCESSORY_TYPES = ['none', 'catEars', 'horns', 'antenna', 'halo', 'whiskers'];
+export const ACCESSORY_TYPES = ['none', 'catEars', 'horns', 'antenna', 'halo', 'whiskers', 'tongue'];
+export const CHARACTER_TYPES = ['cat', 'alien', 'skull', 'robot', 'devil', 'ghost'];
 
-// Клампове за custom/AI параметри
+// Клампове за custom/AI/drawn параметри (същата логика като на сървъра)
 export function clampAvatar(raw = {}) {
   const c = (v, lo, hi, dv) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dv;
   };
+  const base = {
+    id: raw.id || undefined,
+    label: raw.label ? String(raw.label).slice(0, 24) : 'My Custom',
+    emoji: raw.emoji && String(raw.emoji).length <= 4 ? raw.emoji : '⭐',
+    particleSize: c(raw.particleSize, 0.6, 1.8, 1),
+    glow: c(raw.glow, 0, 1, 0.4),
+    fixedColor: /^#[0-9a-fA-F]{6}$/.test(raw.fixedColor || '') ? raw.fixedColor : '#8B7BFA',
+  };
+  if (raw.type === 'drawn' && Array.isArray(raw.points)) {
+    return {
+      ...base,
+      type: 'drawn',
+      points: raw.points
+        .slice(0, 5000)
+        .filter((p) => Array.isArray(p) && p.length >= 2)
+        .map(([x, y]) => [c(x, -1, 1, 0), c(y, -1, 1, 0)]),
+    };
+  }
+  if (raw.type === 'character' && CHARACTER_TYPES.includes(raw.character)) {
+    return { ...base, type: 'character', character: raw.character };
+  }
   const dm = raw.deform || {};
   return {
-    id: 'custom',
-    label: raw.label ? String(raw.label).slice(0, 24) : 'My Custom',
-    emoji: '⭐',
-    family: 'custom',
+    ...base,
+    type: 'live',
     deform: {
       eye: c(dm.eye, 0.4, 2.2, 1),
       faceLength: c(dm.faceLength, 0.6, 1.6, 1),
@@ -58,8 +69,5 @@ export function clampAvatar(raw = {}) {
       eyeDepth: c(dm.eyeDepth, 0.5, 2.2, 1),
     },
     accessory: ACCESSORY_TYPES.includes(raw.accessory) ? raw.accessory : 'none',
-    particleSize: c(raw.particleSize, 0.6, 1.8, 1),
-    glow: c(raw.glow, 0, 1, 0.4),
-    fixedColor: /^#[0-9a-fA-F]{6}$/.test(raw.fixedColor || '') ? raw.fixedColor : '#8B7BFA',
   };
 }

@@ -26,6 +26,13 @@ export function useMediaPipe(videoRef, enabled = true) {
   const landmarksBufRef = useRef(new Float32Array(478 * 3));
   const landmarkStampRef = useRef(0); // performance.now() на последното копие
 
+  // Ключови expression сигнали (за blink/rig на аватарите) — четат се per-frame
+  const blendshapesRef = useRef({ blinkL: 0, blinkR: 0, jawOpen: 0, smile: 0, tongueOut: 0 });
+
+  // Сурови hand landmarks (21 × xyz) за particle ръце / рисуване с пръст
+  const handLandmarksBufRef = useRef(new Float32Array(21 * 3));
+  const handStampRef = useRef(0);
+
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -115,6 +122,15 @@ export function useMediaPipe(videoRef, enabled = true) {
           const blendshapes = faceResult.faceBlendshapes[0].categories;
           const detectedEmotion = classifyEmotionFromBlendshapes(blendshapes);
 
+          // Expression сигнали за аватарния rig (без re-render)
+          const bs = blendshapesRef.current;
+          const g = (name) => blendshapes.find((b) => b.categoryName === name)?.score ?? 0;
+          bs.blinkL = g('eyeBlinkLeft');
+          bs.blinkR = g('eyeBlinkRight');
+          bs.jawOpen = g('jawOpen');
+          bs.smile = (g('mouthSmileLeft') + g('mouthSmileRight')) / 2;
+          bs.tongueOut = g('tongueOut');
+
           // Smoothing: majority vote от последните 8 детекции
           lastEmotions.current.push(detectedEmotion);
           if (lastEmotions.current.length > 8) lastEmotions.current.shift();
@@ -129,6 +145,15 @@ export function useMediaPipe(videoRef, enabled = true) {
         const handResult = handLandmarkerRef.current.detectForVideo(video, timestamp);
         if (handResult.landmarks?.length > 0) {
           const landmarks = handResult.landmarks[0];
+          // Копирай суровите 21 точки (за particle ръце / finger draw)
+          const hbuf = handLandmarksBufRef.current;
+          for (let i = 0; i < 21; i++) {
+            const p = landmarks[i];
+            hbuf[i * 3] = p.x;
+            hbuf[i * 3 + 1] = p.y;
+            hbuf[i * 3 + 2] = p.z;
+          }
+          handStampRef.current = performance.now();
           const detectedGesture = classifyGesture(landmarks);
           // Огледално x — камерата е mirror
           const pos = { x: 1 - landmarks[9].x, y: landmarks[9].y };
@@ -158,6 +183,9 @@ export function useMediaPipe(videoRef, enabled = true) {
     handPositionRef,
     landmarksBufRef,
     landmarkStampRef,
+    blendshapesRef,
+    handLandmarksBufRef,
+    handStampRef,
     detect,
     ready,
     error,

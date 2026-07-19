@@ -5,6 +5,7 @@ import { EmotionSidebar } from '../components/HUD';
 import { SaveModal } from '../components/SaveModal';
 import { PoemOverlay } from '../components/PoemOverlay';
 import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useAuth } from '../hooks/useAuth';
 import { useAudio } from '../hooks/useAudio';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useVoiceCommands } from '../hooks/useVoiceCommands';
@@ -117,10 +118,25 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const commitTextRef = useRef(null);
   const [systemReadyTick, setSystemReadyTick] = useState(0);
 
-  const { emotion, gesture, emotionRef, gestureRef, handPositionRef, detect, ready } =
+  const { emotion, gesture, emotionRef, gestureRef, handPositionRef, landmarksBufRef, landmarkStampRef, detect, ready } =
     useMediaPipe(videoRef, liveEnabled);
   const { initAudio, stopAudio, getAudioData, getWaveform } = useAudio();
   const { saveArtwork, generatePoem, saving } = useArtworkStore();
+  const { authFetch } = useAuth();
+
+  // Particle аватар вместо реалната камера (по избор от профила)
+  const [camAvatar, setCamAvatar] = useState(null);
+  useEffect(() => {
+    authFetch('/api/users/avatar')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.camAvatarId) {
+          const a = (d.list || []).find((x) => x.id === d.camAvatarId);
+          if (a) setCamAvatar({ color: a.fixedColor || '#8B7BFA' });
+        }
+      })
+      .catch(() => {});
+  }, [authFetch]);
 
   // Emotion history — по 1 запис в секунда
   const [emotionHistory, setEmotionHistory] = useState([]);
@@ -686,6 +702,9 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           getWaveform={getWaveform}
           visible={sidebarVisible}
           onToggle={() => setSidebarVisible((v) => !v)}
+          camAvatar={camAvatar}
+          landmarksBufRef={landmarksBufRef}
+          landmarkStampRef={landmarkStampRef}
         />
       )}
 

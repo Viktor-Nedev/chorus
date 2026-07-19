@@ -12,6 +12,11 @@ export function MoodParticleScene({
   landmarkStampRef,
   avatarRef,
   emotionColorRef,
+  blendshapesRef,
+  handBufRef,
+  handStampRef,
+  effectsRef,
+  clearSignalRef,
   onSnapshotReady,
   onCanvasReady,
 }) {
@@ -40,6 +45,11 @@ export function MoodParticleScene({
         landmarkStampRef={landmarkStampRef}
         avatarRef={avatarRef}
         emotionColorRef={emotionColorRef}
+        blendshapesRef={blendshapesRef}
+        handBufRef={handBufRef}
+        handStampRef={handStampRef}
+        effectsRef={effectsRef}
+        clearSignalRef={clearSignalRef}
       />
     </Canvas>
   );
