@@ -56,6 +56,111 @@ function triangleFromBox(x1, y1, x2, y2) {
   return [cx, y1, x1, y2, x2, y2];
 }
 
+// ── Two-point инструменти (рисуват се между начална точка и текущата мишка
+// върху release). LINE_LIKE ползват дебелина ~size; фигурите ползват size*0.4.
+const LINE_LIKE_TOOLS = ['LINE', 'DASHED', 'ARROWLINE', 'ZIGZAG'];
+const TWO_POINT_TOOLS = [
+  'LINE', 'DASHED', 'ARROWLINE', 'ZIGZAG',
+  'CIRCLE', 'RECT', 'TRIANGLE', 'STAR', 'HEXAGON', 'PENTAGON', 'DIAMOND', 'HEART', 'ARROW',
+];
+
+function drawDashedLine(g, x1, y1, x2, y2, dashLen, gapLen) {
+  const d = Math.hypot(x2 - x1, y2 - y1);
+  if (d < 0.001) return;
+  const ux = (x2 - x1) / d;
+  const uy = (y2 - y1) / d;
+  const step = dashLen + gapLen;
+  for (let s = 0; s < d; s += step) {
+    const e = Math.min(s + dashLen, d);
+    g.line(x1 + ux * s, y1 + uy * s, x1 + ux * e, y1 + uy * e);
+  }
+}
+
+function drawArrowLine(g, x1, y1, x2, y2, headSize) {
+  g.line(x1, y1, x2, y2);
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  const h = Math.max(8, headSize);
+  g.line(x2, y2, x2 - h * Math.cos(ang - Math.PI / 6), y2 - h * Math.sin(ang - Math.PI / 6));
+  g.line(x2, y2, x2 - h * Math.cos(ang + Math.PI / 6), y2 - h * Math.sin(ang + Math.PI / 6));
+}
+
+function drawZigzag(g, x1, y1, x2, y2, amp, waveLen) {
+  const d = Math.hypot(x2 - x1, y2 - y1);
+  if (d < 0.001) { g.line(x1, y1, x2, y2); return; }
+  const ux = (x2 - x1) / d;
+  const uy = (y2 - y1) / d;
+  const nx = -uy;
+  const ny = ux;
+  const segs = Math.max(2, Math.round(d / waveLen));
+  g.beginShape();
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const off = i === 0 || i === segs ? 0 : (i % 2 === 0 ? -amp : amp);
+    g.vertex(x1 + ux * d * t + nx * off, y1 + uy * d * t + ny * off);
+  }
+  g.endShape();
+}
+
+// Параметрично сърце, центрирано в (cx,cy), с радиус r.
+function drawHeart(g, p, cx, cy, r) {
+  const s = r / 16;
+  g.beginShape();
+  for (let a = 0; a <= Math.PI * 2 + 0.0001; a += 0.12) {
+    const x = 16 * Math.pow(Math.sin(a), 3);
+    const y = 13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a);
+    g.vertex(cx + x * s, cy - y * s);
+  }
+  g.endShape(p.CLOSE);
+}
+
+// Плътна стрелка (блок-arrow) от (x1,y1) към (x2,y2).
+function drawArrowShape(g, p, x1, y1, x2, y2) {
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  if (len < 1) return;
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  const shaftW = Math.max(6, len * 0.14);
+  const headW = shaftW * 2.3;
+  const headLen = Math.min(len * 0.42, headW * 1.3);
+  const pts = [
+    [0, -shaftW / 2],
+    [len - headLen, -shaftW / 2],
+    [len - headLen, -headW / 2],
+    [len, 0],
+    [len - headLen, headW / 2],
+    [len - headLen, shaftW / 2],
+    [0, shaftW / 2],
+  ];
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+  g.beginShape();
+  for (const [px, py] of pts) {
+    g.vertex(x1 + px * cos - py * sin, y1 + px * sin + py * cos);
+  }
+  g.endShape(p.CLOSE);
+}
+
+// Рисува геометрията на two-point инструмент върху g (drawLayer при commit
+// или главния canvas за preview). Стилът (stroke/fill/weight) се задава от
+// викащия — тук чертаем само формата.
+function drawShapeGeometry(g, p, tool, x1, y1, x2, y2, size) {
+  switch (tool) {
+    case 'LINE': g.line(x1, y1, x2, y2); break;
+    case 'DASHED': drawDashedLine(g, x1, y1, x2, y2, Math.max(8, size), Math.max(6, size * 0.7)); break;
+    case 'ARROWLINE': drawArrowLine(g, x1, y1, x2, y2, size * 2.2); break;
+    case 'ZIGZAG': drawZigzag(g, x1, y1, x2, y2, Math.max(8, size), Math.max(16, size * 1.8)); break;
+    case 'CIRCLE': { const r = p.dist(x1, y1, x2, y2); g.ellipse(x1, y1, r * 2); break; }
+    case 'RECT': g.rectMode(p.CORNERS); g.rect(x1, y1, x2, y2); g.rectMode(p.CORNER); break;
+    case 'TRIANGLE': { const [a, b, c, d, e, f] = triangleFromBox(x1, y1, x2, y2); g.triangle(a, b, c, d, e, f); break; }
+    case 'STAR': { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, oR = Math.max(p.dist(x1, y1, x2, y2) / 2, 4); drawPolygon(g, p, cx, cy, oR, 10, oR * 0.45); break; }
+    case 'HEXAGON': { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, oR = Math.max(p.dist(x1, y1, x2, y2) / 2, 4); drawPolygon(g, p, cx, cy, oR, 6); break; }
+    case 'PENTAGON': { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, oR = Math.max(p.dist(x1, y1, x2, y2) / 2, 4); drawPolygon(g, p, cx, cy, oR, 5); break; }
+    case 'DIAMOND': { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, oR = Math.max(p.dist(x1, y1, x2, y2) / 2, 4); drawPolygon(g, p, cx, cy, oR, 4); break; }
+    case 'HEART': { const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, r = Math.max(p.dist(x1, y1, x2, y2) / 2, 6); drawHeart(g, p, cx, cy, r); break; }
+    case 'ARROW': drawArrowShape(g, p, x1, y1, x2, y2); break;
+    default: break;
+  }
+}
+
 function drawParticle(p, particle) {
   // Следи
   for (let i = 1; i < particle.trail.length; i++) {
@@ -237,6 +342,7 @@ export function P5Canvas({
   baseColor = { r: 150, g: 100, b: 255 },
   usersRef,
   myAudioLevelRef,
+  canvasSizeRef,
   onSystemReady,
   onTextPlace,
   onColorPicked,
@@ -273,6 +379,8 @@ export function P5Canvas({
     let lastHandX = null; // последна позиция на ръката, докато HAND tool рисува
     let lastHandY = null;
     let wasHandDrawing = false;
+    let smoothHandX = null; // EMA-изгладена позиция на ръката (анти-трепет)
+    let smoothHandY = null;
 
     const undo = createUndoStack(20);
 
@@ -282,10 +390,14 @@ export function P5Canvas({
 
     const sketch = (p) => {
       p.setup = () => {
-        p.createCanvas(w, h);
+        // Solo: канвасът е артборд с явен размер (центриран фрейм в SoloCanvas),
+        // подаван през canvasSizeRef. Collective: пълни контейнера.
+        const initW = (mode === 'solo' && canvasSizeRef?.current?.w) || w;
+        const initH = (mode === 'solo' && canvasSizeRef?.current?.h) || h;
+        p.createCanvas(initW, initH);
         p.background(bg().r, bg().g, bg().b);
         p.colorMode(p.RGB, 255);
-        drawLayer = p.createGraphics(w, h);
+        drawLayer = p.createGraphics(initW, initH);
         drawLayer.clear(); // прозрачен, за да не покрива фона
         undo.reset(drawLayer.get());
 
@@ -382,6 +494,9 @@ export function P5Canvas({
       };
 
       p.windowResized = () => {
+        // Solo артбордът е с фиксиран размер (сменя се само през presets/rotate
+        // от родителя чрез resizeCanvasTo) — не го пипаме при resize на прозореца.
+        if (mode === 'solo') return;
         const nw = containerRef.current?.clientWidth || window.innerWidth;
         const nh = containerRef.current?.clientHeight || window.innerHeight;
         const snapshot = drawLayer.get();
@@ -398,10 +513,11 @@ export function P5Canvas({
       p.draw = () => {
         const { r, g, b } = bg();
 
-        // Фосилен ефект — много бавно избледняване, само за частиците
-        p.fill(r, g, b, 6);
-        p.noStroke();
-        p.rect(0, 0, p.width, p.height);
+        // Пълно изчистване всеки кадър. Частиците пазят СВОЯ per-particle trail
+        // (рисува се live в drawParticle), но нищо не се наслагва върху канваса —
+        // затова CHORUS не оставя петна и preview-ите на фигурите не оставят
+        // „сянка" от преминаването.
+        p.background(r, g, b);
 
         const audio = getAudioRef.current ? getAudioRef.current() : { bassLevel: 0, midLevel: 0, trebleLevel: 0, totalLevel: 0 };
         const emotion = emotionRef?.current ?? 'neutral';
@@ -455,8 +571,20 @@ export function P5Canvas({
         // затваряне на дланта продължава рисуването от новото място.
         let handDrawState = null; // { hx, hy, canDraw } — за курсора, рисуван по-долу
         if (mode === 'solo' && tool?.tool === 'HAND' && drawLayer) {
-          const hx = handPos.x * p.width;
-          const hy = handPos.y * p.height;
+          const rawHx = handPos.x * p.width;
+          const rawHy = handPos.y * p.height;
+          // EMA изглаждане — намалява трепета на ръката. handSmoothing 0..0.9
+          // (0 = сурова позиция, по-високо = по-гладко/по-инертно).
+          const sm = Math.min(0.9, Math.max(0, tool.handSmoothing ?? 0));
+          if (smoothHandX === null || gesture === 'NO_HAND') {
+            smoothHandX = rawHx;
+            smoothHandY = rawHy;
+          } else {
+            smoothHandX += (rawHx - smoothHandX) * (1 - sm);
+            smoothHandY += (rawHy - smoothHandY) * (1 - sm);
+          }
+          const hx = smoothHandX;
+          const hy = smoothHandY;
           const canDraw = gesture !== 'NO_HAND' && gesture !== 'OPEN_PALM' && !tool.handPaused;
           if (gesture !== 'NO_HAND') handDrawState = { hx, hy, canDraw };
 
@@ -491,6 +619,8 @@ export function P5Canvas({
           lastHandX = null;
           lastHandY = null;
           wasHandDrawing = false;
+          smoothHandX = null;
+          smoothHandY = null;
         }
 
         // ── Постоянният слой за ръчно рисуване — рисува се всеки кадър
@@ -514,35 +644,18 @@ export function P5Canvas({
           particleSystem.particles.forEach((particle) => drawParticle(p, particle));
         }
 
-        // ── Live preview за инструменти, рисувани на release
+        // ── Live preview за two-point инструменти (рисувани на release)
         if (mode === 'solo' && isDrawing && toolRef?.current) {
           const { tool: activeTool, color, size } = toolRef.current;
-          const shapeTools = ['LINE', 'CIRCLE', 'RECT', 'TRIANGLE', 'STAR', 'HEXAGON'];
-          if (shapeTools.includes(activeTool)) {
+          if (TWO_POINT_TOOLS.includes(activeTool)) {
             const c = hexToRgb(color);
+            const isLineLike = LINE_LIKE_TOOLS.includes(activeTool);
             p.push();
             p.noFill();
             p.stroke(c.r, c.g, c.b, 160);
-            p.strokeWeight(Math.max(1, size * 0.4));
-            if (activeTool === 'LINE') {
-              p.line(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-            } else if (activeTool === 'CIRCLE') {
-              const r2 = p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-              p.ellipse(shapeStartX, shapeStartY, r2 * 2);
-            } else if (activeTool === 'RECT') {
-              p.rectMode(p.CORNERS);
-              p.rect(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-              p.rectMode(p.CORNER);
-            } else if (activeTool === 'TRIANGLE') {
-              const [tx1, ty1, tx2, ty2, tx3, ty3] = triangleFromBox(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-              p.triangle(tx1, ty1, tx2, ty2, tx3, ty3);
-            } else if (activeTool === 'STAR' || activeTool === 'HEXAGON') {
-              const cx = (shapeStartX + p.mouseX) / 2;
-              const cy = (shapeStartY + p.mouseY) / 2;
-              const outerR = Math.max(p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY) / 2, 4);
-              if (activeTool === 'STAR') drawPolygon(p, p, cx, cy, outerR, 10, outerR * 0.45);
-              else drawPolygon(p, p, cx, cy, outerR, 6);
-            }
+            p.strokeCap(p.ROUND);
+            p.strokeWeight(isLineLike ? Math.max(1, size) : Math.max(1, size * 0.4));
+            drawShapeGeometry(p, p, activeTool, shapeStartX, shapeStartY, p.mouseX, p.mouseY, size);
             p.pop();
           }
         }
@@ -567,6 +680,28 @@ export function P5Canvas({
           p.strokeWeight(1);
           p.ellipse(p.mouseX, p.mouseY, tool.size * 2);
         }
+
+        // ── Text placement cursor — мигаща вертикална черта + базова линия на
+        // позицията на мишката, за да е ясно КЪДЕ ще легне текстът.
+        if (mode === 'solo' && tool?.tool === 'TEXT' && overCanvas()) {
+          const th = Math.max(20, (tool.size || 10) * 2.2);
+          const blink = p.frameCount % 64 < 42;
+          p.push();
+          if (blink) {
+            p.stroke(255, 255, 255, 220);
+            p.strokeWeight(2);
+            p.line(p.mouseX, p.mouseY, p.mouseX, p.mouseY + th);
+          }
+          p.stroke(139, 123, 247, 200);
+          p.strokeWeight(1.5);
+          p.line(p.mouseX - 4, p.mouseY + th, p.mouseX + 16, p.mouseY + th);
+          p.noStroke();
+          p.fill(139, 123, 247, 220);
+          p.textSize(11);
+          p.textAlign(p.LEFT, p.BOTTOM);
+          p.text('Text', p.mouseX + 6, p.mouseY - 2);
+          p.pop();
+        }
       };
 
       // ── Manual drawing (Solo) — всичко персистентно се рисува в drawLayer
@@ -585,7 +720,7 @@ export function P5Canvas({
           lastY = p.mouseY;
           waveDist = 0;
         }
-        if (['LINE', 'CIRCLE', 'RECT', 'TRIANGLE', 'STAR', 'HEXAGON'].includes(tool)) {
+        if (TWO_POINT_TOOLS.includes(tool)) {
           isDrawing = true;
           shapeStartX = p.mouseX;
           shapeStartY = p.mouseY;
@@ -596,15 +731,21 @@ export function P5Canvas({
           pushUndoSnapshot();
         }
         if (tool === 'FILL') {
+          // drawLayer.pixels е с pixelDensity (обикновено 2× на retina) — трябва
+          // да ползваме ИСТИНСКИТЕ пикселни размери и мащабираните координати,
+          // иначе индексите са грешни и пълненето „не работи".
+          const d = drawLayer.pixelDensity();
+          const pw = drawLayer.width * d;
+          const ph = drawLayer.height * d;
           drawLayer.loadPixels();
           floodFill(
-            drawLayer.pixels, drawLayer.width, drawLayer.height,
-            Math.floor(p.mouseX), Math.floor(p.mouseY), hexToRgb(color), FILL_TOLERANCE
+            drawLayer.pixels, pw, ph,
+            Math.floor(p.mouseX * d), Math.floor(p.mouseY * d), hexToRgb(color), FILL_TOLERANCE
           );
           if (symmetry) {
             floodFill(
-              drawLayer.pixels, drawLayer.width, drawLayer.height,
-              Math.floor(mirroredX(p.mouseX)), Math.floor(p.mouseY), hexToRgb(color), FILL_TOLERANCE
+              drawLayer.pixels, pw, ph,
+              Math.floor(mirroredX(p.mouseX) * d), Math.floor(p.mouseY * d), hexToRgb(color), FILL_TOLERANCE
             );
           }
           drawLayer.updatePixels();
@@ -677,54 +818,18 @@ export function P5Canvas({
 
         if (tool === 'BRUSH' || tool === 'WAVE' || tool === 'ERASER') {
           committed = strokeDirty; // continuous щрихи вече нарисувани по време на drag
-        } else if (tool === 'LINE') {
+        } else if (TWO_POINT_TOOLS.includes(tool)) {
+          const isLineLike = LINE_LIKE_TOOLS.includes(tool);
+          drawLayer.push();
+          drawLayer.noFill();
           drawLayer.stroke(c.r, c.g, c.b, alpha);
-          drawLayer.strokeWeight(size);
           drawLayer.strokeCap(p.ROUND);
-          drawLayer.line(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          if (symmetry) drawLayer.line(mirroredX(shapeStartX), shapeStartY, mirroredX(p.mouseX), p.mouseY);
-          committed = true;
-        } else if (tool === 'CIRCLE') {
-          const r = p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          drawLayer.noFill();
-          drawLayer.stroke(c.r, c.g, c.b, alpha);
-          drawLayer.strokeWeight(size * 0.4);
-          drawLayer.ellipse(shapeStartX, shapeStartY, r * 2);
-          if (symmetry) drawLayer.ellipse(mirroredX(shapeStartX), shapeStartY, r * 2);
-          committed = true;
-        } else if (tool === 'RECT') {
-          drawLayer.noFill();
-          drawLayer.stroke(c.r, c.g, c.b, alpha);
-          drawLayer.strokeWeight(size * 0.4);
-          drawLayer.rectMode(p.CORNERS);
-          drawLayer.rect(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          if (symmetry) drawLayer.rect(mirroredX(shapeStartX), shapeStartY, mirroredX(p.mouseX), p.mouseY);
-          drawLayer.rectMode(p.CORNER);
-          committed = true;
-        } else if (tool === 'TRIANGLE') {
-          const [tx1, ty1, tx2, ty2, tx3, ty3] = triangleFromBox(shapeStartX, shapeStartY, p.mouseX, p.mouseY);
-          drawLayer.noFill();
-          drawLayer.stroke(c.r, c.g, c.b, alpha);
-          drawLayer.strokeWeight(size * 0.4);
-          drawLayer.triangle(tx1, ty1, tx2, ty2, tx3, ty3);
+          drawLayer.strokeWeight(isLineLike ? Math.max(1, size) : Math.max(1, size * 0.4));
+          drawShapeGeometry(drawLayer, p, tool, shapeStartX, shapeStartY, p.mouseX, p.mouseY, size);
           if (symmetry) {
-            const [mx1, my1, mx2, my2, mx3, my3] = triangleFromBox(
-              mirroredX(shapeStartX), shapeStartY, mirroredX(p.mouseX), p.mouseY
-            );
-            drawLayer.triangle(mx1, my1, mx2, my2, mx3, my3);
+            drawShapeGeometry(drawLayer, p, tool, mirroredX(shapeStartX), shapeStartY, mirroredX(p.mouseX), p.mouseY, size);
           }
-          committed = true;
-        } else if (tool === 'STAR' || tool === 'HEXAGON') {
-          const cx = (shapeStartX + p.mouseX) / 2;
-          const cy = (shapeStartY + p.mouseY) / 2;
-          const outerR = Math.max(p.dist(shapeStartX, shapeStartY, p.mouseX, p.mouseY) / 2, 4);
-          const innerR = tool === 'STAR' ? outerR * 0.45 : undefined;
-          const sides = tool === 'STAR' ? 10 : 6;
-          drawLayer.noFill();
-          drawLayer.stroke(c.r, c.g, c.b, alpha);
-          drawLayer.strokeWeight(size * 0.4);
-          drawPolygon(drawLayer, p, cx, cy, outerR, sides, innerR);
-          if (symmetry) drawPolygon(drawLayer, p, mirroredX(cx), cy, outerR, sides, innerR);
+          drawLayer.pop();
           committed = true;
         }
 

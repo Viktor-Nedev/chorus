@@ -4,6 +4,8 @@ import { VideoProcessor } from '../components/VideoProcessor';
 import { EmotionSidebar } from '../components/HUD';
 import { SaveModal } from '../components/SaveModal';
 import { PoemOverlay } from '../components/PoemOverlay';
+import { InstructionsBook } from '../components/solo/InstructionsBook';
+import { EMOTION_HEX } from '../constants/emotions';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAuth } from '../hooks/useAuth';
 import { useAudio } from '../hooks/useAudio';
@@ -11,23 +13,43 @@ import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useVoiceCommands } from '../hooks/useVoiceCommands';
 import { useDictation } from '../hooks/useDictation';
 
+// Основен тулбар. LINES / SHAPES са категории — водят flyout с варианти
+// (като PEN_STYLES при HAND) и показват иконата на активния вариант.
 const TOOLS = [
-  { id: 'CHORUS', icon: '🎆', label: 'Chorus — particle brush' },
+  { id: 'CHORUS', icon: '🎆', label: 'Chorus — particle brush (emotion-driven)' },
   { id: 'HAND', icon: '🖐️', label: 'Hand Draw — draw with your gesture (open palm = pause)' },
   { id: 'BRUSH', icon: '✏️', label: 'Brush — freehand line (persists)' },
-  { id: 'LINE', icon: '／', label: 'Line — straight stroke, click + drag' },
-  { id: 'CIRCLE', icon: '○', label: 'Circle — click + drag' },
-  { id: 'RECT', icon: '□', label: 'Rect — click + drag' },
-  { id: 'TRIANGLE', icon: '▲', label: 'Triangle — click + drag' },
-  { id: 'STAR', icon: '★', label: 'Star — click + drag' },
-  { id: 'HEXAGON', icon: '⬡', label: 'Hexagon — click + drag' },
+  { id: 'LINES', icon: '／', label: 'Lines — straight, wave, dashed, arrow, zigzag', category: 'lines' },
+  { id: 'SHAPES', icon: '◇', label: 'Shapes — circle, rect, triangle, star, heart…', category: 'shapes' },
   { id: 'BURST', icon: '✦', label: 'Burst — click to explode' },
-  { id: 'WAVE', icon: '🌊', label: 'Wave — wavy line' },
   { id: 'FILL', icon: '🪣', label: 'Fill — flood fill an enclosed area' },
   { id: 'TEXT', icon: '✍️', label: 'Text — click to place, or dictate' },
   { id: 'EYEDROPPER', icon: '💧', label: 'Eyedropper — pick a color from the canvas' },
   { id: 'ERASER', icon: '⌫', label: 'Eraser' },
 ];
+
+const LINE_TOOLS = [
+  { id: 'LINE', icon: '／', label: 'Straight line' },
+  { id: 'WAVE', icon: '🌊', label: 'Wavy line' },
+  { id: 'DASHED', icon: '┄', label: 'Dashed line' },
+  { id: 'ARROWLINE', icon: '➔', label: 'Arrow line' },
+  { id: 'ZIGZAG', icon: '↯', label: 'Zigzag line' },
+];
+
+const SHAPE_TOOLS = [
+  { id: 'CIRCLE', icon: '○', label: 'Circle' },
+  { id: 'RECT', icon: '□', label: 'Rectangle' },
+  { id: 'TRIANGLE', icon: '△', label: 'Triangle' },
+  { id: 'STAR', icon: '★', label: 'Star' },
+  { id: 'HEXAGON', icon: '⬡', label: 'Hexagon' },
+  { id: 'PENTAGON', icon: '⬠', label: 'Pentagon' },
+  { id: 'DIAMOND', icon: '◇', label: 'Diamond' },
+  { id: 'HEART', icon: '♥', label: 'Heart' },
+  { id: 'ARROW', icon: '➤', label: 'Arrow' },
+];
+
+const LINE_IDS = new Set(LINE_TOOLS.map((t) => t.id));
+const SHAPE_IDS = new Set(SHAPE_TOOLS.map((t) => t.id));
 
 const PEN_STYLES = [
   { id: 'BRUSH', icon: '🖌️', label: 'Brush — soft round stroke' },
@@ -42,11 +64,13 @@ const PEN_STYLES = [
 const CANVAS_PRESETS = [
   { label: '1280 × 720', w: 1280, h: 720 },
   { label: '1920 × 1080', w: 1920, h: 1080 },
-  { label: '1080 × 1080 (Square)', w: 1080, h: 1080 },
+  { label: '1080 × 1080', w: 1080, h: 1080 },
+  { label: '720 × 1280', w: 720, h: 1280 },
   { label: 'Fit to window', w: 'fit', h: 'fit' },
 ];
 
-const COLOR_TOOLS = new Set(['HAND', 'BRUSH', 'LINE', 'CIRCLE', 'RECT', 'TRIANGLE', 'STAR', 'HEXAGON', 'BURST', 'WAVE', 'FILL', 'TEXT']);
+// Всичко ползва избрания цвят освен тези три (CHORUS = емоция, EYEDROPPER/ERASER — без цвят).
+const NON_COLOR_TOOLS = new Set(['CHORUS', 'EYEDROPPER', 'ERASER']);
 const MIN_SIZE = 1;
 const MAX_SIZE = 50;
 const MIN_ZOOM = 0.5;
@@ -67,16 +91,37 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [opacity, setOpacity] = useState(100);
   const [penStyle, setPenStyle] = useState('BRUSH');
   const [handPaused, setHandPaused] = useState(false);
+  const [handSmooth, setHandSmooth] = useState(true); // изглаждане на ръката (анти-трепет)
   const [symmetryEnabled, setSymmetryEnabled] = useState(false);
+  const [lineVariant, setLineVariant] = useState('LINE'); // активен вариант в Lines категорията
+  const [shapeVariant, setShapeVariant] = useState('CIRCLE'); // активен вариант в Shapes категорията
   const toolRef = useRef({
     tool: 'CHORUS', color: '#a78bfa', size: 10, opacity: 100, penStyle: 'BRUSH',
-    handPaused: false, symmetry: false,
+    handPaused: false, symmetry: false, handSmoothing: 0.6,
   });
-  toolRef.current = { tool, color, size, opacity, penStyle, handPaused, symmetry: symmetryEnabled };
+  toolRef.current = {
+    tool, color, size, opacity, penStyle, handPaused,
+    symmetry: symmetryEnabled, handSmoothing: handSmooth ? 0.6 : 0,
+  };
   const previousToolRef = useRef('CHORUS');
+
+  const colorEnabled = !NON_COLOR_TOOLS.has(tool) && tool !== 'LINES' && tool !== 'SHAPES';
+
+  const [cameraPulse, setCameraPulse] = useState(false);
+  const pulseCamera = () => {
+    setCameraPulse(true);
+    setTimeout(() => setCameraPulse(false), 2800);
+  };
 
   const selectTool = (id) => {
     if (id === 'EYEDROPPER' && tool !== 'EYEDROPPER') previousToolRef.current = tool;
+    if (LINE_IDS.has(id)) setLineVariant(id);
+    if (SHAPE_IDS.has(id)) setShapeVariant(id);
+    // Hand Draw иска включена камера — подскажи и „светни" бутона.
+    if (id === 'HAND' && !liveEnabled) {
+      showToast('Enable the camera (👁) first to draw with your hand');
+      pulseCamera();
+    }
     setTool(id);
   };
 
@@ -92,10 +137,22 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [toast, setToast] = useState(null);
 
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [sizeMenuOpen, setSizeMenuOpen] = useState(false);
 
   // Zoom (view-only CSS scale — не пипа резолюцията на canvas-а)
   const [zoom, setZoom] = useState(1);
   const clampZoom = (z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+
+  // Размер на артборда — център на екрана с видима рамка. canvasSizeRef се
+  // чете от P5Canvas при създаване, за да съвпадат канвасът и рамката.
+  const [canvasSize, setCanvasSize] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 720,
+  }));
+  const canvasSizeRef = useRef(canvasSize);
+  canvasSizeRef.current = canvasSize;
+  const userPickedSizeRef = useRef(false); // true = фиксиран preset (не авто-fit)
 
   // Export
   const [exportFormat, setExportFormat] = useState('png');
@@ -221,12 +278,35 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artworkToEdit, systemReadyTick]);
 
-  // ── Гласови команди — смяна на инструмент/цвят/размер, clear, save,
-  // и пауза/продължаване на рисуването с ръка
+  // ── Цвят според текущата емоция
+  const applyEmotionColor = useCallback(() => {
+    const hex = EMOTION_HEX[emotionRef.current] || EMOTION_HEX.neutral;
+    setColor(hex);
+    showToast(`🎨 Emotion color → ${hex}`);
+  }, [emotionRef]);
+
+  // ── Постави текст в центъра на платното (от гласовата команда „текст …")
+  const placeVoiceText = useCallback((str) => {
+    const trimmed = (str || '').trim();
+    if (!trimmed) return;
+    const cx = Math.max(16, canvasSize.w / 2 - trimmed.length * (size * 0.55));
+    const cy = canvasSize.h / 2;
+    commitTextRef.current?.(cx, cy, trimmed, color, size);
+    setTool('TEXT');
+  }, [canvasSize, color, size]);
+
+  // ── Гласови команди — инструмент/писец/фигура/цвят/размер, clear, save,
+  // пауза/продължаване на ръката, цвят-по-емоция и текст
   const { supported: voiceSupported } = useVoiceCommands({
     enabled: voiceEnabled,
     onColor: setColor,
     onTool: selectTool,
+    onPenStyle: (style) => {
+      setPenStyle(style);
+      if (toolRef.current.tool !== 'HAND') selectTool('HAND');
+    },
+    onEmotionColor: applyEmotionColor,
+    onText: placeVoiceText,
     onClear: handleClear,
     onSave: () => setShowSaveModal(true),
     onSizeChange: (delta) => setSize((s) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, s + delta))),
@@ -283,27 +363,68 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   };
 
   // ── Zoom
-  const zoomIn = () => setZoom((z) => clampZoom(z + 0.2));
-  const zoomOut = () => setZoom((z) => clampZoom(z - 0.2));
+  const zoomIn = () => setZoom((z) => clampZoom(+(z + 0.2).toFixed(2)));
+  const zoomOut = () => setZoom((z) => clampZoom(+(z - 0.2).toFixed(2)));
   const zoomReset = () => setZoom(1);
 
-  // ── Rotate
-  const handleRotate = (direction) => rotateRef.current?.(direction);
+  // Ctrl + колелце → zoom около центъра (platното е центрирано в overflow-auto).
+  useEffect(() => {
+    const el = document.getElementById('chorus-canvas-viewport');
+    if (!el) return;
+    const onWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom((z) => clampZoom(+(z + (e.deltaY < 0 ? 0.12 : -0.12)).toFixed(2)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
-  // ── Canvas size
-  const handleCanvasSize = (e) => {
-    const preset = CANVAS_PRESETS[Number(e.target.value)];
-    if (!preset) return;
-    if (preset.w === 'fit') {
-      const el = document.getElementById('chorus-canvas-viewport');
-      const w = el?.clientWidth || window.innerWidth;
-      const h = el?.clientHeight || window.innerHeight;
-      resizeCanvasToRef.current?.(w, h);
-    } else {
-      resizeCanvasToRef.current?.(preset.w, preset.h);
-    }
-    e.target.selectedIndex = -1; // отново готово за следващ избор дори на същия preset
+  // ── Rotate — сменя размерите на артборда; центрираният фрейм остава центриран.
+  const handleRotate = (direction) => {
+    rotateRef.current?.(direction);
+    setCanvasSize((s) => ({ w: s.h, h: s.w }));
+    setZoom(1);
   };
+
+  // ── Canvas size preset
+  const applyCanvasPreset = (preset) => {
+    setSizeMenuOpen(false);
+    let w;
+    let h;
+    if (preset.w === 'fit') {
+      userPickedSizeRef.current = false;
+      const el = document.getElementById('chorus-canvas-viewport');
+      w = el?.clientWidth || window.innerWidth;
+      h = el?.clientHeight || window.innerHeight;
+    } else {
+      userPickedSizeRef.current = true;
+      w = preset.w;
+      h = preset.h;
+    }
+    setCanvasSize({ w, h });
+    resizeCanvasToRef.current?.(w, h);
+    setZoom(1);
+  };
+
+  // ── Авто-fit при първо зареждане: изравни артборда с реалния viewport,
+  // докато потребителят не избере фиксиран размер.
+  useEffect(() => {
+    if (userPickedSizeRef.current) return;
+    const el = document.getElementById('chorus-canvas-viewport');
+    if (!el) return;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (w && h && (w !== canvasSize.w || h !== canvasSize.h)) {
+      setCanvasSize({ w, h });
+      resizeCanvasToRef.current?.(w, h);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemReadyTick]);
+
+  // ── Изход: изключи микрофона (камерата/ръката спират с unmount на
+  // VideoProcessor/useMediaPipe; гласът — с useVoiceCommands).
+  useEffect(() => () => stopAudio(), [stopAudio]);
 
   // ── Save flow
   const handleSave = async ({ title: t, author, description, generatePoem: wantPoem }) => {
@@ -393,23 +514,36 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
   return (
     <div className="relative h-full w-full bg-ink overflow-hidden">
-      <div id="chorus-canvas-viewport" className="absolute inset-0 overflow-auto">
+      <div id="chorus-canvas-viewport" className="absolute inset-0 overflow-auto flex">
+        {/* m-auto центрира; при overflow margin-ите стават 0 и остава напълно
+            скролируем (без flexbox clipping на горния/левия ръб). */}
         <div
-          className="relative w-full h-full"
-          style={{ transform: `scale(${zoom})`, transformOrigin: '0 0' }}
+          className="m-auto shrink-0"
+          style={{ width: canvasSize.w * zoom, height: canvasSize.h * zoom }}
         >
-          <P5Canvas
-            mode="solo"
-            emotionRef={emotionRef}
-            gestureRef={gestureRef}
-            handPositionRef={handPositionRef}
-            getAudioData={getAudioData}
-            toolRef={toolRef}
-            liveRef={liveRef}
-            onSystemReady={onSystemReady}
-            onTextPlace={handleTextPlace}
-            onColorPicked={handleColorPicked}
-          />
+          <div
+            className="relative border border-white/15 shadow-[0_0_60px_rgba(0,0,0,0.7)]"
+            style={{
+              width: canvasSize.w,
+              height: canvasSize.h,
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top left',
+            }}
+          >
+            <P5Canvas
+              mode="solo"
+              emotionRef={emotionRef}
+              gestureRef={gestureRef}
+              handPositionRef={handPositionRef}
+              getAudioData={getAudioData}
+              toolRef={toolRef}
+              liveRef={liveRef}
+              canvasSizeRef={canvasSizeRef}
+              onSystemReady={onSystemReady}
+              onTextPlace={handleTextPlace}
+              onColorPicked={handleColorPicked}
+            />
+          </div>
         </div>
       </div>
 
@@ -461,26 +595,58 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           {/* Transform */}
           <button onClick={() => handleRotate(-1)} title="Rotate canvas 90° counter-clockwise" className={headerIconBtn}>⟲</button>
           <button onClick={() => handleRotate(1)} title="Rotate canvas 90° clockwise" className={headerIconBtn}>⟳</button>
-          <select
-            onChange={handleCanvasSize}
-            defaultValue={-1}
-            title="Canvas size"
-            className="rounded-lg border border-ink-line bg-ink-soft/70 backdrop-blur h-8 text-[11px] text-gray-300 px-1"
-          >
-            <option value={-1} disabled>⬚ Size</option>
-            {CANVAS_PRESETS.map((preset, i) => (
-              <option key={preset.label} value={i}>{preset.label}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <button
+              onClick={() => setSizeMenuOpen((v) => !v)}
+              title="Canvas size — centred artboard with a visible frame"
+              className="flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft/70 backdrop-blur h-8 px-2 text-[11px] hover:border-gray-500 transition"
+            >
+              <span className="text-gray-400">⬚</span>
+              <span className="tabular-nums text-gray-100">{Math.round(canvasSize.w)}×{Math.round(canvasSize.h)}</span>
+            </button>
+            {sizeMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setSizeMenuOpen(false)} />
+                <div className="absolute right-0 top-9 z-30 w-40 rounded-lg border border-ink-line bg-ink-soft/95 backdrop-blur py-1 shadow-xl animate-fade-in">
+                  {CANVAS_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      onClick={() => applyCanvasPreset(preset)}
+                      className="block w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-ink-line/60 transition"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
           {/* Mode */}
           <button
             onClick={() => setSymmetryEnabled((v) => !v)}
             title="Symmetry / Mirror mode — mirrors every stroke across the vertical center"
-            className={`${headerIconBtn} ${symmetryEnabled ? 'border-cyan-500 bg-cyan-950/40 text-cyan-300' : ''}`}
+            className={`relative ${headerIconBtn} ${symmetryEnabled ? 'border-cyan-400 bg-cyan-950/50 text-cyan-200 mode-glow-cyan' : ''}`}
           >
             🪞
+            {symmetryEnabled && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 glow-pulse" />
+            )}
+          </button>
+          <button
+            onClick={applyEmotionColor}
+            title="Emotion color — set the brush color from your current emotion"
+            className={headerIconBtn}
+          >
+            🎨
+          </button>
+          <button
+            onClick={() => setShowInstructions(true)}
+            title="Instructions — how to draw, voice commands, shortcuts"
+            className={headerIconBtn}
+          >
+            📖
           </button>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
@@ -531,22 +697,40 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       </header>
 
       {/* ── TOOLBAR (вляво, 2 колони) ── */}
-      <aside className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-[104px] max-h-[85vh] overflow-y-auto rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-2">
+      <aside className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-[104px] max-h-[88vh] overflow-y-auto rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-2">
         <div className="grid grid-cols-2 gap-1">
-          {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => selectTool(t.id)}
-              title={t.label}
-              className={`w-11 h-11 rounded-lg flex items-center justify-center text-lg transition ${
-                tool === t.id
-                  ? 'bg-violet-600/30 border border-violet-500 text-white'
-                  : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
-              }`}
-            >
-              {t.icon}
-            </button>
-          ))}
+          {TOOLS.map((t) => {
+            const isLines = t.category === 'lines';
+            const isShapes = t.category === 'shapes';
+            const active = isLines ? LINE_IDS.has(tool) : isShapes ? SHAPE_IDS.has(tool) : tool === t.id;
+            const icon = isLines
+              ? LINE_TOOLS.find((l) => l.id === lineVariant)?.icon || t.icon
+              : isShapes
+                ? SHAPE_TOOLS.find((s) => s.id === shapeVariant)?.icon || t.icon
+                : t.icon;
+            const onClick = isLines
+              ? () => selectTool(lineVariant)
+              : isShapes
+                ? () => selectTool(shapeVariant)
+                : () => selectTool(t.id);
+            return (
+              <button
+                key={t.id}
+                onClick={onClick}
+                title={t.label}
+                className={`relative w-11 h-11 rounded-lg flex items-center justify-center text-lg transition ${
+                  active
+                    ? 'bg-violet-600/30 border border-violet-500 text-white'
+                    : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
+                }`}
+              >
+                {icon}
+                {(isLines || isShapes) && (
+                  <span className="absolute bottom-0.5 right-1 text-[8px] text-gray-500 leading-none">▸</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="w-16 border-t border-ink-line" />
@@ -556,9 +740,9 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           type="color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
-          disabled={!COLOR_TOOLS.has(tool)}
+          disabled={!colorEnabled}
           title="Color"
-          className={`w-9 h-9 ${COLOR_TOOLS.has(tool) ? '' : 'opacity-30 pointer-events-none'}`}
+          className={`w-9 h-9 ${colorEnabled ? '' : 'opacity-30 pointer-events-none'}`}
         />
 
         <div className="flex flex-col items-center gap-0.5" title={`Size: ${size}px`}>
@@ -591,7 +775,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           <button
             onClick={handleLiveToggle}
             title="Toggle camera + microphone"
-            className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
+            className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${cameraPulse ? 'attention-pulse' : ''} ${
               liveEnabled
                 ? 'bg-green-600/30 border border-green-500 text-white'
                 : 'text-gray-400 hover:bg-ink-line/50 border border-transparent'
@@ -610,25 +794,40 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           >
             🖐
           </button>
-          {tool === 'HAND' && (
+        </div>
+
+        {/* Hand Draw контроли — на отделни редове, за да не се режат */}
+        {tool === 'HAND' && (
+          <div className="flex flex-col items-stretch gap-1 w-[88px] animate-fade-in">
             <button
               onClick={() => setHandPaused((v) => !v)}
               title={handPaused ? 'Resume hand drawing' : 'Pause hand drawing (or open palm / say "stop")'}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
+              className={`h-8 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition ${
                 handPaused
-                  ? 'bg-red-600/30 border border-red-500 text-white'
+                  ? 'bg-red-600/30 border border-red-500 text-red-200'
                   : 'bg-green-600/20 border border-green-600/60 text-green-300'
               }`}
             >
-              {handPaused ? '▶' : '⏸'}
+              {handPaused ? '▶ Resume' : '⏸ Pause'}
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setHandSmooth((v) => !v)}
+              title="Smoothing — reduces hand tremble for a steadier line"
+              className={`h-8 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition ${
+                handSmooth
+                  ? 'bg-cyan-600/25 border border-cyan-500/70 text-cyan-200'
+                  : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
+              }`}
+            >
+              {handSmooth ? '⚡ Smooth' : '〜 Raw'}
+            </button>
+          </div>
+        )}
       </aside>
 
-      {/* ── PEN STYLES (за Hand Draw) ── */}
+      {/* ── FLYOUT: PEN STYLES / LINES / SHAPES (вдясно от тулбара) ── */}
       {tool === 'HAND' && (
-        <aside className="absolute left-[116px] top-1/2 -translate-y-1/2 z-20 w-[52px] rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-1 animate-fade-in">
+        <aside className="absolute left-[116px] top-1/2 -translate-y-1/2 z-20 w-[52px] max-h-[80vh] overflow-y-auto rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-1 animate-fade-in">
           {PEN_STYLES.map((s) => (
             <button
               key={s.id}
@@ -637,6 +836,44 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
               className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
                 penStyle === s.id
                   ? 'bg-cyan-600/30 border border-cyan-500 text-white'
+                  : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
+              }`}
+            >
+              {s.icon}
+            </button>
+          ))}
+        </aside>
+      )}
+
+      {LINE_IDS.has(tool) && (
+        <aside className="absolute left-[116px] top-1/2 -translate-y-1/2 z-20 w-[52px] max-h-[80vh] overflow-y-auto rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-1 animate-fade-in">
+          {LINE_TOOLS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => selectTool(s.id)}
+              title={s.label}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
+                tool === s.id
+                  ? 'bg-violet-600/30 border border-violet-500 text-white'
+                  : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
+              }`}
+            >
+              {s.icon}
+            </button>
+          ))}
+        </aside>
+      )}
+
+      {SHAPE_IDS.has(tool) && (
+        <aside className="absolute left-[116px] top-1/2 -translate-y-1/2 z-20 w-[52px] max-h-[80vh] overflow-y-auto rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur flex flex-col items-center py-2 gap-1 animate-fade-in">
+          {SHAPE_TOOLS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => selectTool(s.id)}
+              title={s.label}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center text-base transition ${
+                tool === s.id
+                  ? 'bg-violet-600/30 border border-violet-500 text-white'
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
               }`}
             >
@@ -737,6 +974,8 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       )}
 
       {/* ── MODALS ── */}
+      {showInstructions && <InstructionsBook onClose={() => setShowInstructions(false)} />}
+
       {showSaveModal && (
         <SaveModal
           defaultTitle={title}

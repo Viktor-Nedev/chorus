@@ -333,3 +333,27 @@ input[type='color']::-webkit-color-swatch {
   to { transform: translateX(0); opacity: 1; }
 }
 .animate-slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ─── Notebook page-flip (InstructionsBook) ─── */
+@keyframes book-flip-next {
+  from { transform: rotateY(-28deg); opacity: 0; }
+  to { transform: rotateY(0deg); opacity: 1; }
+}
+@keyframes book-flip-prev {
+  from { transform: rotateY(28deg); opacity: 0; }
+  to { transform: rotateY(0deg); opacity: 1; }
+}
+.book-flip-next { animation: book-flip-next 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.book-flip-prev { animation: book-flip-prev 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ─── Attention pulse — за да „светне" бутон (напр. камерата при Hand Draw) ─── */
+@keyframes attention-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.5); }
+}
+.attention-pulse { animation: attention-pulse 0.9s ease-in-out 3; }
+
+/* ─── Active-mode glow (напр. Mirror ON) ─── */
+.mode-glow-cyan {
+  box-shadow: 0 0 0 1px rgb(var(--accent-cyan) / 0.6), 0 0 14px rgb(var(--accent-cyan) / 0.4);
+}
