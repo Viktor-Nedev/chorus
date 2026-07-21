@@ -135,7 +135,7 @@ export function Gallery({ navigate }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {visible.map((art) => (
             <GalleryCard
               key={art.id}

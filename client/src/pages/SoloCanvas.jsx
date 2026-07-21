@@ -6,6 +6,7 @@ import { SaveModal } from '../components/SaveModal';
 import { PoemOverlay } from '../components/PoemOverlay';
 import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { EMOTION_HEX } from '../constants/emotions';
+import { extractPalette } from '../engine/paletteExtract';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAuth } from '../hooks/useAuth';
 import { useAudio } from '../hooks/useAudio';
@@ -24,6 +25,8 @@ const TOOLS = [
   { id: 'BURST', icon: '✦', label: 'Burst — click to explode' },
   { id: 'FILL', icon: '🪣', label: 'Fill — flood fill an enclosed area' },
   { id: 'TEXT', icon: '✍️', label: 'Text — click to place, or dictate' },
+  { id: 'VOICE', icon: '🗣️', label: 'Voice paint — steer with the cursor, paint with your voice' },
+  { id: 'SELECT', icon: '⛶', label: 'Select — marquee to cut / move / copy a region' },
   { id: 'EYEDROPPER', icon: '💧', label: 'Eyedropper — pick a color from the canvas' },
   { id: 'ERASER', icon: '⌫', label: 'Eraser' },
 ];
@@ -69,8 +72,8 @@ const CANVAS_PRESETS = [
   { label: 'Fit to window', w: 'fit', h: 'fit' },
 ];
 
-// Всичко ползва избрания цвят освен тези три (CHORUS = емоция, EYEDROPPER/ERASER — без цвят).
-const NON_COLOR_TOOLS = new Set(['CHORUS', 'EYEDROPPER', 'ERASER']);
+// Всичко ползва избрания цвят освен тези (CHORUS = емоция; SELECT/EYEDROPPER/ERASER — без цвят).
+const NON_COLOR_TOOLS = new Set(['CHORUS', 'EYEDROPPER', 'ERASER', 'SELECT']);
 const MIN_SIZE = 1;
 const MAX_SIZE = 50;
 const MIN_ZOOM = 0.5;
@@ -117,9 +120,14 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     if (id === 'EYEDROPPER' && tool !== 'EYEDROPPER') previousToolRef.current = tool;
     if (LINE_IDS.has(id)) setLineVariant(id);
     if (SHAPE_IDS.has(id)) setShapeVariant(id);
-    // Hand Draw иска включена камера — подскажи и „светни" бутона.
+    // Hand Draw иска включена камера; Voice paint иска микрофон — двете се
+    // пускат заедно с 👁. Подскажи и „светни" бутона.
     if (id === 'HAND' && !liveEnabled) {
       showToast('Enable the camera (👁) first to draw with your hand');
+      pulseCamera();
+    }
+    if (id === 'VOICE' && !liveEnabled) {
+      showToast('Enable the microphone (👁) first to paint with your voice');
       pulseCamera();
     }
     setTool(id);
@@ -131,7 +139,10 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const liveRef = useRef({ camera: false, hands: true });
   liveRef.current = { camera: liveEnabled, hands: handsEnabled };
 
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  // На телефон Live State започва свит, за да не покрива платното
+  const [sidebarVisible, setSidebarVisible] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 640
+  );
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [poemState, setPoemState] = useState(null); // { loading, poem }
   const [toast, setToast] = useState(null);
@@ -173,6 +184,17 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const resizeCanvasToRef = useRef(null);
   const loadArtworkRef = useRef(null);
   const commitTextRef = useRef(null);
+  // Selection / paste api
+  const pasteImageRef = useRef(null);
+  const commitFloatingRef = useRef(null);
+  const cancelFloatingRef = useRef(null);
+  const deleteFloatingRef = useRef(null);
+  const hasFloatingRef = useRef(null);
+  const getSelectionDataURLRef = useRef(null);
+  const clipboardRef = useRef(null); // вътрешен clipboard (dataURL) за Ctrl+V
+  const fileInputRef = useRef(null);
+  const [floatingActive, setFloatingActive] = useState(false);
+  const [sidebarPos, setSidebarPos] = useState(null); // null=докиран; {x,y}=откачен
   const [systemReadyTick, setSystemReadyTick] = useState(0);
 
   const { emotion, gesture, emotionRef, gestureRef, handPositionRef, landmarksBufRef, landmarkStampRef, detect, ready } =
@@ -241,6 +263,12 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     resizeCanvasToRef.current = api?.resizeCanvasTo ?? null;
     loadArtworkRef.current = api?.loadArtworkImage ?? null;
     commitTextRef.current = api?.commitText ?? null;
+    pasteImageRef.current = api?.pasteImage ?? null;
+    commitFloatingRef.current = api?.commitFloating ?? null;
+    cancelFloatingRef.current = api?.cancelFloating ?? null;
+    deleteFloatingRef.current = api?.deleteFloating ?? null;
+    hasFloatingRef.current = api?.hasFloating ?? null;
+    getSelectionDataURLRef.current = api?.getSelectionDataURL ?? null;
     setSystemReadyTick((t) => t + 1);
   }, []);
 
@@ -248,24 +276,124 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     clearAllRef.current?.();
   }, []);
 
-  // ── Undo/Redo — бутони + Ctrl+Z / Ctrl+Y (пропуска се, ако фокусът е в текстово поле)
+  // ── Selection / clipboard помощни
+  const dataURLFromFile = (file) =>
+    new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+
+  const copySelection = useCallback(async () => {
+    const url = getSelectionDataURLRef.current?.();
+    if (!url) return false;
+    clipboardRef.current = url;
+    try {
+      const blob = await (await fetch(url)).blob();
+      // eslint-disable-next-line no-undef
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    } catch { /* системният clipboard може да е блокиран — ползваме вътрешния */ }
+    return true;
+  }, []);
+
+  const commitFloating = useCallback(() => {
+    commitFloatingRef.current?.();
+    setFloatingActive(false);
+  }, []);
+
+  const cancelFloating = useCallback(() => {
+    cancelFloatingRef.current?.();
+    setFloatingActive(false);
+  }, []);
+
+  const openImagePicker = () => fileInputRef.current?.click();
+
+  const onImageFileChosen = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const url = await dataURLFromFile(file);
+      pasteImageRef.current?.(url);
+      setFloatingActive(true);
+    } catch {
+      showToast('Could not load that image');
+    }
+  };
+
+  // ── Клавиши: Undo/Redo, Copy/Cut, Delete/Enter/Escape за floating
   useEffect(() => {
     const handler = (e) => {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const ctrl = e.ctrlKey || e.metaKey;
-      if (!ctrl) return;
       const k = e.key.toLowerCase();
-      if (k === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undoRef.current?.();
-      } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
-        e.preventDefault();
-        redoRef.current?.();
+
+      if (!ctrl) {
+        if (!hasFloatingRef.current?.()) return;
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault(); deleteFloatingRef.current?.(); setFloatingActive(false);
+        } else if (e.key === 'Enter') {
+          e.preventDefault(); commitFloatingRef.current?.(); setFloatingActive(false);
+        } else if (e.key === 'Escape') {
+          e.preventDefault(); cancelFloatingRef.current?.(); setFloatingActive(false);
+        }
+        return;
       }
+
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoRef.current?.(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redoRef.current?.(); }
+      else if (k === 'c') { if (getSelectionDataURLRef.current?.()) { copySelection(); showToast('Copied'); } }
+      else if (k === 'x') {
+        if (getSelectionDataURLRef.current?.()) {
+          copySelection();
+          deleteFloatingRef.current?.();
+          setFloatingActive(false);
+          showToast('Cut');
+        }
+      }
+      // Ctrl+V се обработва от 'paste' събитието по-долу
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [copySelection]);
+
+  // ── Пействане на снимка (Ctrl+V / контекст меню): системен clipboard → иначе вътрешен
+  useEffect(() => {
+    const onPaste = async (e) => {
+      const items = e.clipboardData?.items || [];
+      for (const it of items) {
+        if (it.type && it.type.startsWith('image/')) {
+          const file = it.getAsFile();
+          if (file) {
+            e.preventDefault();
+            try {
+              const url = await dataURLFromFile(file);
+              pasteImageRef.current?.(url);
+              setFloatingActive(true);
+              showToast('Pasted image');
+            } catch { /* ignore */ }
+            return;
+          }
+        }
+      }
+      if (clipboardRef.current) {
+        pasteImageRef.current?.(clipboardRef.current);
+        setFloatingActive(true);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
+
+  // ── Синхронизирай floating състоянието (живее в p5) за UI лентата ✓/✕
+  useEffect(() => {
+    const id = setInterval(() => {
+      const has = !!hasFloatingRef.current?.();
+      setFloatingActive((prev) => (prev !== has ? has : prev));
+    }, 150);
+    return () => clearInterval(id);
   }, []);
 
   // ── Зареждане на запазена картина от галерията за редакция
@@ -430,6 +558,11 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const handleSave = async ({ title: t, author, description, generatePoem: wantPoem }) => {
     const p = p5InstanceRef.current;
     if (!p) return;
+    commitFloatingRef.current?.(); // фиксирай висящ floating преди export
+
+    // Доминантни цветове от нарисуваното — за да ги отрази поемата
+    const canvasEl = p.canvas ?? p.drawingContext.canvas;
+    const palette = extractPalette(canvasEl);
 
     let poem = '';
     if (wantPoem) {
@@ -439,6 +572,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
         poem = await generatePoem({
           duration: Math.floor((Date.now() - startTimeRef.current) / 1000),
           emotionHistory,
+          colors: palette,
           mode: 'solo',
         });
         setPoemState({ loading: false, poem });
@@ -549,8 +683,38 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
       <VideoProcessor ref={videoRef} detect={detect} active={liveEnabled} />
 
+      {/* Скрит file input за импорт на снимка */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={onImageFileChosen}
+        className="hidden"
+      />
+
+      {/* ── Floating обект лента (✓ commit / ✕ cancel) ── */}
+      {floatingActive && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-ink-soft/95 border border-cyan-500/60 px-3 py-1.5 backdrop-blur animate-fade-in mode-glow-cyan">
+          <span className="text-[11px] text-cyan-200">Drag to move · corners to resize</span>
+          <button
+            onClick={commitFloating}
+            className="rounded-md bg-cyan-600/80 hover:bg-cyan-500 text-white text-xs px-2 py-1 transition"
+            title="Place (Enter)"
+          >
+            ✓ Place
+          </button>
+          <button
+            onClick={cancelFloating}
+            className="rounded-md border border-ink-line text-gray-300 hover:bg-ink-line/50 text-xs px-2 py-1 transition"
+            title="Cancel (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── HEADER ── */}
-      <header className="absolute top-0 inset-x-0 z-20 flex items-center gap-2 px-4 h-14 bg-gradient-to-b from-ink/90 to-transparent">
+      <header className="absolute top-0 inset-x-0 z-20 flex items-center flex-wrap gap-2 px-4 min-h-14 py-1.5 bg-gradient-to-b from-ink/90 to-transparent">
         <button
           onClick={() => navigate('landing')}
           className="text-sm text-gray-400 hover:text-white transition shrink-0"
@@ -771,6 +935,17 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
         <div className="w-16 border-t border-ink-line" />
 
+        {/* Пействане/импорт на снимка */}
+        <button
+          onClick={openImagePicker}
+          title="Add an image — pick a file (or paste with Ctrl+V)"
+          className="w-[88px] h-8 rounded-lg text-xs flex items-center justify-center gap-1 text-gray-300 border border-ink-line hover:bg-ink-line/50 transition"
+        >
+          🖼 Image
+        </button>
+
+        <div className="w-16 border-t border-ink-line" />
+
         <div className="flex gap-1">
           <button
             onClick={handleLiveToggle}
@@ -942,6 +1117,9 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           camAvatar={camAvatar}
           landmarksBufRef={landmarksBufRef}
           landmarkStampRef={landmarkStampRef}
+          position={sidebarPos}
+          onDragTo={setSidebarPos}
+          onDock={() => setSidebarPos(null)}
         />
       )}
 
@@ -970,6 +1148,20 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       {voiceEnabled && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-red-300 bg-ink-soft/70 border border-red-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
           Say a color, a tool, "bigger", "clear", "save" — or "stop"/"draw" to pause hand drawing
+        </div>
+      )}
+
+      {/* Подсказка за Voice paint */}
+      {tool === 'VOICE' && liveEnabled && !voiceEnabled && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-violet-300 bg-ink-soft/70 border border-violet-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
+          Speak or hum to paint · move the cursor to steer · louder = thicker, higher pitch shifts the color
+        </div>
+      )}
+
+      {/* Подсказка за Select */}
+      {tool === 'SELECT' && !floatingActive && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-cyan-300 bg-ink-soft/70 border border-cyan-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
+          Drag a box to lift a region · then move / resize · Ctrl+C copy · Ctrl+X cut · Del delete · Enter place
         </div>
       )}
 

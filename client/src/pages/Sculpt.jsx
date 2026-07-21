@@ -7,6 +7,7 @@ import { PRIMITIVE_LIST } from '../engine/sculpt/drawTools';
 import { DEFAULT_TERRAIN_PARAMS } from '../engine/sculpt/terrain';
 import { EXPORT_FORMATS, exportScene, bakeGroupForExport, downloadBlob } from '../engine/sculpt/exporters';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { MobileNotice } from '../components/MobileNotice';
 
 const TOOLS = [
   { id: 'select', icon: '⬚', label: 'Select / transform (G move · R rotate · S scale)' },
@@ -185,6 +186,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
 
   return (
     <div className="h-full w-full bg-ink flex flex-col overflow-hidden">
+      <MobileNotice label="The 3D sculpt editor needs a mouse and a larger screen" />
       {/* ── HEADER ── */}
       <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-ink-line bg-ink-soft/50">
         <button onClick={() => navigate('landing')} className="text-sm text-gray-400 hover:text-white transition">

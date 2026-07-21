@@ -10,6 +10,7 @@ import {
 import { analyzeCanvas, serializeObjects } from '../engine/sketchAnalyzer';
 import { buildWireframeHtml } from '../engine/wireframePreview';
 import { useWebforge } from '../hooks/useWebforge';
+import { MobileNotice } from '../components/MobileNotice';
 
 const TOOLS = [
   { id: 'SELECT', icon: '⬚', label: 'Select (V) — click/move/resize · Del removes' },
@@ -455,6 +456,7 @@ export function WebForge({ navigate }) {
 
   return (
     <div className="h-full w-full bg-ink flex flex-col overflow-hidden">
+      <MobileNotice label="WebForge is built for desktop — draw layouts with a mouse on a wide screen" />
       {/* ── HEADER ── */}
       <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-ink-line bg-ink-soft/50">
         <button

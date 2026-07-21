@@ -15,6 +15,7 @@ import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useAuth } from '../hooks/useAuth';
+import { MobileNotice } from '../components/MobileNotice';
 
 function hslToRgb(h, s, l) {
   s /= 100;
@@ -339,6 +340,7 @@ function Session({ socket, navigate }) {
 
   return (
     <div className="relative h-full w-full bg-ink overflow-hidden">
+      <MobileNotice label="Collective is best on desktop — a bigger canvas for the shared session" />
       <P5Canvas
         mode="collective"
         emotionRef={emotionRef}

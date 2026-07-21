@@ -9,16 +9,17 @@ function getClient() {
   return genAI;
 }
 
-async function generatePoem({
+// Чиста функция — сглобява промпта. Изнесена за unit-тест (палитрата и
+// емоционалната дъга трябва да присъстват).
+function buildPoemPrompt({
   duration,
   totalUsers,
   emotionHistory = [],
   significantMoments,
   silenceMoments,
+  colors = [],
   mode,
 }) {
-  const model = getClient().getGenerativeModel({ model: 'gemini-flash-latest' });
-
   const isCollective = mode === 'collective';
 
   const systemContext = isCollective
@@ -27,6 +28,8 @@ Write in second person plural. 8-12 lines, free verse, concrete imagery.
 No clichés. No title. Only the poem.`
     : `You are a minimalist poet writing about a single person's creative moment.
 Write in second person singular. 6-10 lines, free verse, concrete imagery.
+Ground the images in the actual colours they painted with — let those colours
+appear as concrete things (not colour words listed, but evoked).
 No clichés. No title. Only the poem.`;
 
   const emotionSummary = emotionHistory
@@ -55,8 +58,14 @@ No clichés. No title. Only the poem.`;
     silenceMoments?.map((s) => `at ${s.timestamp}s: silence for ${s.duration} seconds`).join('\n') ||
     '';
 
-  const prompt = isCollective
-    ? `${systemContext}
+  // Палитра → четим списък имена (най-плътните цветове първи).
+  const paletteText = (colors || [])
+    .map((c) => (typeof c === 'string' ? c : c?.name || c?.hex))
+    .filter(Boolean)
+    .join(', ');
+
+  if (isCollective) {
+    return `${systemContext}
 
 ${totalUsers} people shared a digital canvas for ${duration} seconds.
 
@@ -67,20 +76,29 @@ ${momentsText}
 
 ${silenceText}
 
-Write a poem about this shared moment.`
-    : `${systemContext}
+Write a poem about this shared moment.`;
+  }
+
+  return `${systemContext}
 
 One person created art for ${duration} seconds.
+
+The colours they painted with, most present first:
+${paletteText || 'muted, mostly shadow and a little light'}
 
 Their emotional journey:
 ${emotionSummary || 'mostly neutral, quietly focused'}
 
 ${silenceText}
 
-Write a poem about this creative moment.`;
+Write a poem about this creative moment, letting those colours live inside the images.`;
+}
 
+async function generatePoem(payload = {}) {
+  const model = getClient().getGenerativeModel({ model: 'gemini-flash-latest' });
+  const prompt = buildPoemPrompt(payload);
   const result = await model.generateContent(prompt);
   return result.response.text().trim();
 }
 
-module.exports = { generatePoem, getClient };
+module.exports = { generatePoem, buildPoemPrompt, getClient };

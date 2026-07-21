@@ -23,6 +23,32 @@ function rgbToHex(r, g, b) {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+const clamp255 = (v) => Math.max(0, Math.min(255, v));
+
+// Voice-draw: измества избрания цвят по спектралния баланс на гласа —
+// повече бас → по-топло/тъмно, повече требъл → по-студено/ярко.
+function voiceTint(hexColor, audio) {
+  const c = hexToRgb(hexColor);
+  const bass = audio?.bassLevel || 0;
+  const treble = audio?.trebleLevel || 0;
+  const shift = treble - bass; // ~ -1..1
+  return {
+    r: clamp255(c.r + shift * -35),
+    g: clamp255(c.g + Math.abs(shift) * 12),
+    b: clamp255(c.b + shift * 55),
+  };
+}
+
+// 8-те resize дръжки на floating обект (canvas координати).
+function floatingHandles(f) {
+  const { x, y, w, h } = f;
+  return {
+    nw: [x, y], n: [x + w / 2, y], ne: [x + w, y],
+    e: [x + w, y + h / 2], se: [x + w, y + h], s: [x + w / 2, y + h],
+    sw: [x, y + h], w: [x, y + h / 2],
+  };
+}
+
 function drawSpike(p, x, y, size) {
   p.beginShape();
   p.vertex(x, y - size);
@@ -381,12 +407,38 @@ export function P5Canvas({
     let wasHandDrawing = false;
     let smoothHandX = null; // EMA-изгладена позиция на ръката (анти-трепет)
     let smoothHandY = null;
+    let lastVoiceX = null; // voice-draw: свързване на последователните дъги
+    let lastVoiceY = null;
+    let voiceDrew = false;
+
+    // Selection / floating object (изрязване/пействане/resize)
+    let floating = null; // { img, x, y, w, h, ox, oy, ow, oh, lifted }
+    let floatDrag = null; // { mode, mx, my, x, y, w, h }
+    let selecting = false; // marquee в ход
+    let selStartX = 0;
+    let selStartY = 0;
 
     const undo = createUndoStack(20);
 
     const bg = () => CANVAS_BG;
     const mirroredX = (x) => drawLayer.width - x;
     const pushUndoSnapshot = () => undo.push(drawLayer.get());
+
+    // Щампова floating обекта върху постоянния слой и го маха.
+    const commitFloating = () => {
+      if (!floating) return;
+      drawLayer.image(floating.img, floating.x, floating.y, floating.w, floating.h);
+      floating = null;
+      pushUndoSnapshot();
+    };
+    // Отмяна: ако е бил вдигнат от платното (marquee) — върни го на старото място.
+    const cancelFloating = () => {
+      if (floating?.lifted) {
+        drawLayer.image(floating.img, floating.ox, floating.oy, floating.ow, floating.oh);
+        pushUndoSnapshot();
+      }
+      floating = null;
+    };
 
     const sketch = (p) => {
       p.setup = () => {
@@ -489,6 +541,37 @@ export function P5Canvas({
             }
             drawLayer.pop();
             pushUndoSnapshot();
+          },
+
+          // ── Selection / paste ──
+          pasteImage: (dataURL) => {
+            p.loadImage(dataURL, (img) => {
+              commitFloating(); // фиксирай предишен floating, ако има
+              let iw = img.width;
+              let ih = img.height;
+              const maxW = drawLayer.width * 0.8;
+              const maxH = drawLayer.height * 0.8;
+              const scale = Math.min(1, maxW / iw, maxH / ih);
+              iw *= scale;
+              ih *= scale;
+              floating = {
+                img, lifted: false,
+                x: (drawLayer.width - iw) / 2, y: (drawLayer.height - ih) / 2, w: iw, h: ih,
+                ox: 0, oy: 0, ow: iw, oh: ih,
+              };
+            });
+          },
+          commitFloating: () => commitFloating(),
+          cancelFloating: () => cancelFloating(),
+          deleteFloating: () => { floating = null; }, // за вдигната селекция = изтриване
+          hasFloating: () => !!floating,
+          getSelectionDataURL: () => {
+            if (!floating) return null;
+            const gw = Math.max(1, Math.round(floating.w));
+            const gh = Math.max(1, Math.round(floating.h));
+            const g = p.createGraphics(gw, gh);
+            g.image(floating.img, 0, 0, gw, gh);
+            return g.elt.toDataURL('image/png');
           },
         });
       };
@@ -623,6 +706,45 @@ export function P5Canvas({
           smoothHandY = null;
         }
 
+        // ── VOICE DRAW: курсорът насочва, гласът рисува. Силата на звука
+        // задава дебелината/плътността, тонът (бас→требъл) мести цвета.
+        let voiceState = null; // { vx, vy, level } — за индикатора по-долу
+        if (mode === 'solo' && tool?.tool === 'VOICE' && drawLayer) {
+          const level = audio.totalLevel || 0;
+          const vx = p.mouseX;
+          const vy = p.mouseY;
+          const onCanvas = vx >= 0 && vx <= p.width && vy >= 0 && vy <= p.height;
+          voiceState = { vx, vy, level, onCanvas };
+          if (onCanvas && level > 0.06) {
+            const tint = voiceTint(tool.color, audio);
+            const w2 = Math.max(2, tool.size * (0.4 + level * 2.2));
+            const a = clamp255(70 + level * 420) * (tool.opacity / 100);
+            drawLayer.stroke(tint.r, tint.g, tint.b, a);
+            drawLayer.strokeWeight(w2);
+            drawLayer.strokeCap(p.ROUND);
+            if (lastVoiceX !== null) {
+              drawLayer.line(lastVoiceX, lastVoiceY, vx, vy);
+              if (tool.symmetry) drawLayer.line(mirroredX(lastVoiceX), lastVoiceY, mirroredX(vx), vy);
+            } else {
+              drawLayer.point(vx, vy);
+            }
+            lastVoiceX = vx;
+            lastVoiceY = vy;
+            voiceDrew = true;
+          } else {
+            // тишина/извън платното → приключи щриха (един undo на „изказване")
+            if (voiceDrew) pushUndoSnapshot();
+            voiceDrew = false;
+            lastVoiceX = null;
+            lastVoiceY = null;
+          }
+        } else if (lastVoiceX !== null || voiceDrew) {
+          if (voiceDrew) pushUndoSnapshot();
+          voiceDrew = false;
+          lastVoiceX = null;
+          lastVoiceY = null;
+        }
+
         // ── Постоянният слой за ръчно рисуване — рисува се всеки кадър
         // на пълна плътност, така че НЕ избледнява със фосилния ефект
         if (drawLayer) p.image(drawLayer, 0, 0);
@@ -702,6 +824,51 @@ export function P5Canvas({
           p.text('Text', p.mouseX + 6, p.mouseY - 2);
           p.pop();
         }
+
+        // ── Voice-draw индикатор — пръстен, чийто радиус пулсира със силата
+        if (voiceState && voiceState.onCanvas) {
+          const { vx, vy, level } = voiceState;
+          p.push();
+          p.noFill();
+          p.stroke(180, 140, 255, 220);
+          p.strokeWeight(2);
+          p.ellipse(vx, vy, 20 + level * 120);
+          p.stroke(180, 140, 255, 90);
+          p.strokeWeight(1);
+          p.ellipse(vx, vy, 14);
+          p.pop();
+        }
+
+        // ── Marquee (докато се тегли селекция)
+        if (mode === 'solo' && selecting) {
+          p.push();
+          p.noFill();
+          p.stroke(255, 255, 255, 200);
+          p.strokeWeight(1);
+          p.drawingContext.setLineDash([6, 4]);
+          p.rectMode(p.CORNERS);
+          p.rect(selStartX, selStartY, p.mouseX, p.mouseY);
+          p.rectMode(p.CORNER);
+          p.drawingContext.setLineDash([]);
+          p.pop();
+        }
+
+        // ── Floating обект (пействана снимка / вдигната селекция) + дръжки
+        if (mode === 'solo' && floating) {
+          p.push();
+          p.image(floating.img, floating.x, floating.y, floating.w, floating.h);
+          p.noFill();
+          p.stroke(125, 249, 255, 230);
+          p.strokeWeight(1.5);
+          p.drawingContext.setLineDash([6, 4]);
+          p.rect(floating.x, floating.y, floating.w, floating.h);
+          p.drawingContext.setLineDash([]);
+          const hs = floatingHandles(floating);
+          p.noStroke();
+          p.fill(125, 249, 255);
+          Object.values(hs).forEach(([hx, hy]) => p.rect(hx - 4, hy - 4, 8, 8));
+          p.pop();
+        }
       };
 
       // ── Manual drawing (Solo) — всичко персистентно се рисува в drawLayer
@@ -709,9 +876,59 @@ export function P5Canvas({
       const overCanvas = () =>
         p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height;
 
+      // Кой елемент на floating обекта е под (mx,my): handle id / 'move' / null
+      const hitFloating = (mx, my) => {
+        if (!floating) return null;
+        const hs = floatingHandles(floating);
+        for (const [id, [hx, hy]] of Object.entries(hs)) {
+          if (Math.abs(mx - hx) <= 8 && Math.abs(my - hy) <= 8) return id;
+        }
+        if (mx >= floating.x && mx <= floating.x + floating.w &&
+            my >= floating.y && my <= floating.y + floating.h) return 'move';
+        return null;
+      };
+
+      const applyFloatDrag = (dx, dy) => {
+        const d = floatDrag;
+        const MIN = 8;
+        let { x, y, w, h } = d;
+        switch (d.mode) {
+          case 'move': x = d.x + dx; y = d.y + dy; break;
+          case 'e': w = Math.max(MIN, d.w + dx); break;
+          case 's': h = Math.max(MIN, d.h + dy); break;
+          case 'w': w = Math.max(MIN, d.w - dx); x = d.x + (d.w - w); break;
+          case 'n': h = Math.max(MIN, d.h - dy); y = d.y + (d.h - h); break;
+          case 'se': w = Math.max(MIN, d.w + dx); h = Math.max(MIN, d.h + dy); break;
+          case 'ne': w = Math.max(MIN, d.w + dx); h = Math.max(MIN, d.h - dy); y = d.y + (d.h - h); break;
+          case 'sw': w = Math.max(MIN, d.w - dx); x = d.x + (d.w - w); h = Math.max(MIN, d.h + dy); break;
+          case 'nw': w = Math.max(MIN, d.w - dx); x = d.x + (d.w - w); h = Math.max(MIN, d.h - dy); y = d.y + (d.h - h); break;
+          default: break;
+        }
+        floating.x = x; floating.y = y; floating.w = w; floating.h = h;
+      };
+
       p.mousePressed = () => {
         if (mode !== 'solo' || !toolRef?.current || !overCanvas()) return;
         const { tool, color, size, symmetry } = toolRef.current;
+
+        // Floating обект има приоритет — влачи/resize, или клик извън = фиксирай
+        if (floating) {
+          const hit = hitFloating(p.mouseX, p.mouseY);
+          if (hit) {
+            floatDrag = { mode: hit, mx: p.mouseX, my: p.mouseY, x: floating.x, y: floating.y, w: floating.w, h: floating.h };
+          } else {
+            commitFloating();
+          }
+          return;
+        }
+
+        // Marquee селекция
+        if (tool === 'SELECT') {
+          selecting = true;
+          selStartX = p.mouseX;
+          selStartY = p.mouseY;
+          return;
+        }
 
         if (tool === 'BRUSH' || tool === 'WAVE' || tool === 'ERASER') {
           isDrawing = true;
@@ -762,7 +979,14 @@ export function P5Canvas({
       };
 
       p.mouseDragged = () => {
-        if (mode !== 'solo' || !isDrawing || !toolRef?.current) return;
+        if (mode !== 'solo') return;
+        // Floating: местене/оразмеряване
+        if (floatDrag) {
+          applyFloatDrag(p.mouseX - floatDrag.mx, p.mouseY - floatDrag.my);
+          return;
+        }
+        if (selecting) return; // marquee се визуализира в draw()
+        if (!isDrawing || !toolRef?.current) return;
         const { tool, color, size, opacity, symmetry } = toolRef.current;
         const c = hexToRgb(color);
         const alpha = opacity * 2.55;
@@ -807,7 +1031,34 @@ export function P5Canvas({
       };
 
       p.mouseReleased = () => {
-        if (mode !== 'solo' || !toolRef?.current || !isDrawing) {
+        if (mode !== 'solo') return;
+        // Приключване на местене/resize на floating
+        if (floatDrag) { floatDrag = null; return; }
+        // Приключване на marquee → вдигни региона в floating (cut-стил)
+        if (selecting) {
+          selecting = false;
+          const x = Math.min(selStartX, p.mouseX);
+          const y = Math.min(selStartY, p.mouseY);
+          const w = Math.abs(p.mouseX - selStartX);
+          const h = Math.abs(p.mouseY - selStartY);
+          const cx = Math.max(0, x);
+          const cy = Math.max(0, y);
+          const cw = Math.min(w, drawLayer.width - cx);
+          const ch = Math.min(h, drawLayer.height - cy);
+          if (cw > 4 && ch > 4) {
+            const img = drawLayer.get(cx, cy, cw, ch);
+            drawLayer.push();
+            drawLayer.erase();
+            drawLayer.noStroke();
+            drawLayer.rect(cx, cy, cw, ch);
+            drawLayer.noErase();
+            drawLayer.pop();
+            pushUndoSnapshot();
+            floating = { img, lifted: true, x: cx, y: cy, w: cw, h: ch, ox: cx, oy: cy, ow: cw, oh: ch };
+          }
+          return;
+        }
+        if (!toolRef?.current || !isDrawing) {
           isDrawing = false;
           return;
         }
@@ -836,6 +1087,24 @@ export function P5Canvas({
         if (committed) pushUndoSnapshot();
         isDrawing = false;
       };
+
+      // ── Touch → същата логика като мишката (Solo). return false спира
+      // scroll/zoom на страницата докато рисуваме върху платното.
+      p.touchStarted = () => {
+        if (mode !== 'solo') return undefined;
+        p.mousePressed();
+        return false;
+      };
+      p.touchMoved = () => {
+        if (mode !== 'solo') return undefined;
+        p.mouseDragged();
+        return false;
+      };
+      p.touchEnded = () => {
+        if (mode !== 'solo') return undefined;
+        p.mouseReleased();
+        return false;
+      };
     };
 
     p5Ref.current = new p5(sketch, containerRef.current);
@@ -847,5 +1116,5 @@ export function P5Canvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return <div ref={containerRef} className="absolute inset-0" style={{ touchAction: 'none' }} />;
 }

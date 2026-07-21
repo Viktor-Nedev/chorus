@@ -13,6 +13,9 @@ export function EmotionSidebar({
   camAvatar, // { color } когато потребителят е избрал particle аватар вместо камера
   landmarksBufRef,
   landmarkStampRef,
+  position, // { x, y } когато е откачен; null = докиран горе-вдясно
+  onDragTo, // (x,y) при влачене за заглавието
+  onDock, // връщане в default позиция
 }) {
   const config = EMOTION_CONFIGS[emotion] || EMOTION_CONFIGS.neutral;
   const gestureInfo = GESTURE_LABELS[gesture] || GESTURE_LABELS.NO_HAND;
@@ -29,15 +32,61 @@ export function EmotionSidebar({
     );
   }
 
+  const detached = !!position;
+
+  // Влачене за заглавната лента (pointer events → clamp в екрана)
+  const startDrag = (e) => {
+    if (!onDragTo) return;
+    e.preventDefault();
+    const panel = e.currentTarget.closest('[data-live-panel]');
+    const rect = panel.getBoundingClientRect();
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
+    const move = (ev) => {
+      const x = Math.max(4, Math.min(window.innerWidth - rect.width - 4, ev.clientX - offX));
+      const y = Math.max(4, Math.min(window.innerHeight - 40, ev.clientY - offY));
+      onDragTo({ x, y });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   return (
-    <div className="absolute right-3 top-20 z-20 w-[200px] rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur p-3 flex flex-col gap-3 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-widest text-gray-500 font-body">
-          Live State
+    <div
+      data-live-panel
+      className={`${detached ? 'fixed' : 'absolute right-3 top-20'} z-30 w-[200px] rounded-xl bg-ink-soft/90 border border-ink-line backdrop-blur p-3 flex flex-col gap-3 animate-fade-in`}
+      style={detached ? { left: position.x, top: position.y } : undefined}
+    >
+      <div
+        onPointerDown={startDrag}
+        className="flex items-center justify-between -m-1 mb-0 p-1 cursor-grab active:cursor-grabbing select-none"
+        title="Drag to move the panel"
+      >
+        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-gray-500 font-body">
+          <span className="text-gray-600">⠿</span> Live State
         </span>
-        <button onClick={onToggle} className="text-xs text-gray-500 hover:text-white">
-          ▶
-        </button>
+        <span className="flex items-center gap-1.5">
+          <button
+            onClick={detached ? onDock : () => onDragTo?.({ x: window.innerWidth - 220, y: 80 })}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="text-xs text-gray-500 hover:text-white"
+            title={detached ? 'Dock back to the corner' : 'Detach panel'}
+          >
+            {detached ? '⤢' : '⛶'}
+          </button>
+          <button
+            onClick={onToggle}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="text-xs text-gray-500 hover:text-white"
+            title="Hide panel"
+          >
+            ▶
+          </button>
+        </span>
       </div>
 
       {/* Текуща емоция */}

@@ -357,3 +357,25 @@ input[type='color']::-webkit-color-swatch {
 .mode-glow-cyan {
   box-shadow: 0 0 0 1px rgb(var(--accent-cyan) / 0.6), 0 0 14px rgb(var(--accent-cyan) / 0.4);
 }
+
+/* ─── Poem overlay loader ─── */
+@keyframes poem-ink-float {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  30% { opacity: 0.9; }
+  100% { transform: translateY(-40px) scale(1.15); opacity: 0; }
+}
+.poem-ink-dot {
+  margin-top: -4px;
+  animation: poem-ink-float 2.4s ease-in-out infinite;
+  filter: blur(0.4px);
+}
+@keyframes poem-shimmer-move {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.poem-shimmer {
+  background: linear-gradient(90deg, transparent, rgb(var(--accent-cyan) / 0.6), transparent);
+  animation: poem-shimmer-move 1.8s linear infinite;
+}
+@keyframes caret-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.poem-caret { animation: caret-blink 0.9s steps(1) infinite; color: rgb(var(--accent-violet)); }
