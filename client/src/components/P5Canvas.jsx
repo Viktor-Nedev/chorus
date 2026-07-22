@@ -372,6 +372,7 @@ export function P5Canvas({
   onSystemReady,
   onTextPlace,
   onColorPicked,
+  onDirty,
 }) {
   const containerRef = useRef(null);
   const p5Ref = useRef(null);
@@ -385,6 +386,8 @@ export function P5Canvas({
   onTextPlaceRef.current = onTextPlace;
   const onColorPickedRef = useRef(onColorPicked);
   onColorPickedRef.current = onColorPicked;
+  const onDirtyRef = useRef(onDirty);
+  onDirtyRef.current = onDirty;
 
   useEffect(() => {
     const particleCount = mode === 'collective' ? 80 : 80;
@@ -410,6 +413,7 @@ export function P5Canvas({
     let lastVoiceX = null; // voice-draw: свързване на последователните дъги
     let lastVoiceY = null;
     let voiceDrew = false;
+    let voiceBurstArmed = true; // burst режим: хистерезис, за да не спами
 
     // Selection / floating object (изрязване/пействане/resize)
     let floating = null; // { img, x, y, w, h, ox, oy, ow, oh, lifted }
@@ -422,7 +426,10 @@ export function P5Canvas({
 
     const bg = () => CANVAS_BG;
     const mirroredX = (x) => drawLayer.width - x;
-    const pushUndoSnapshot = () => undo.push(drawLayer.get());
+    const pushUndoSnapshot = () => {
+      undo.push(drawLayer.get());
+      onDirtyRef.current?.(); // маркирай незапазена промяна (за save-on-exit)
+    };
 
     // Щампова floating обекта върху постоянния слой и го маха.
     const commitFloating = () => {
@@ -706,16 +713,31 @@ export function P5Canvas({
           smoothHandY = null;
         }
 
-        // ── VOICE DRAW: курсорът насочва, гласът рисува. Силата на звука
-        // задава дебелината/плътността, тонът (бас→требъл) мести цвета.
-        let voiceState = null; // { vx, vy, level } — за индикатора по-долу
+        // ── VOICE DRAW: гласът рисува, а НАСОЧВАНЕТО е с ръката (ако е видима)
+        // или с мишката. Paint режим тегли линия; Burst режим избухва частици.
+        let voiceState = null; // { vx, vy, level, mode } — за индикатора по-долу
         if (mode === 'solo' && tool?.tool === 'VOICE' && drawLayer) {
           const level = audio.totalLevel || 0;
-          const vx = p.mouseX;
-          const vy = p.mouseY;
+          const useHand = gesture !== 'NO_HAND';
+          const vx = useHand ? handPos.x * p.width : p.mouseX;
+          const vy = useHand ? handPos.y * p.height : p.mouseY;
           const onCanvas = vx >= 0 && vx <= p.width && vy >= 0 && vy <= p.height;
-          voiceState = { vx, vy, level, onCanvas };
-          if (onCanvas && level > 0.06) {
+          const vMode = tool.voiceMode === 'burst' ? 'burst' : 'paint';
+          voiceState = { vx, vy, level, onCanvas, mode: vMode };
+
+          if (vMode === 'burst') {
+            // rising-edge с хистерезис — избухни веднъж при силен звук
+            if (onCanvas && level > 0.18 && voiceBurstArmed) {
+              drawBurstEffect(drawLayer, vx, vy, tool.color, Math.max(20, tool.size * 5));
+              if (tool.symmetry) drawBurstEffect(drawLayer, mirroredX(vx), vy, tool.color, Math.max(20, tool.size * 5));
+              pushUndoSnapshot();
+              voiceBurstArmed = false;
+            } else if (level < 0.08) {
+              voiceBurstArmed = true;
+            }
+            lastVoiceX = null;
+            lastVoiceY = null;
+          } else if (onCanvas && level > 0.06) {
             const tint = voiceTint(tool.color, audio);
             const w2 = Math.max(2, tool.size * (0.4 + level * 2.2));
             const a = clamp255(70 + level * 420) * (tool.opacity / 100);
@@ -826,14 +848,16 @@ export function P5Canvas({
         }
 
         // ── Voice-draw индикатор — пръстен, чийто радиус пулсира със силата
+        // (на насочващата точка — ръка или мишка). Burst = топъл цвят.
         if (voiceState && voiceState.onCanvas) {
-          const { vx, vy, level } = voiceState;
+          const { vx, vy, level, mode: vMode } = voiceState;
+          const rr = vMode === 'burst' ? [255, 180, 90] : [180, 140, 255];
           p.push();
           p.noFill();
-          p.stroke(180, 140, 255, 220);
+          p.stroke(rr[0], rr[1], rr[2], 220);
           p.strokeWeight(2);
-          p.ellipse(vx, vy, 20 + level * 120);
-          p.stroke(180, 140, 255, 90);
+          p.ellipse(vx, vy, 20 + level * 140);
+          p.stroke(rr[0], rr[1], rr[2], 90);
           p.strokeWeight(1);
           p.ellipse(vx, vy, 14);
           p.pop();

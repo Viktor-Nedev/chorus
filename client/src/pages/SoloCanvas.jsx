@@ -98,13 +98,15 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [symmetryEnabled, setSymmetryEnabled] = useState(false);
   const [lineVariant, setLineVariant] = useState('LINE'); // активен вариант в Lines категорията
   const [shapeVariant, setShapeVariant] = useState('CIRCLE'); // активен вариант в Shapes категорията
+  const [emotionColorMode, setEmotionColorMode] = useState(false); // цветът следва емоцията на живо
+  const [voiceMode, setVoiceMode] = useState('paint'); // voice paint режим: 'paint' | 'burst'
   const toolRef = useRef({
     tool: 'CHORUS', color: '#a78bfa', size: 10, opacity: 100, penStyle: 'BRUSH',
-    handPaused: false, symmetry: false, handSmoothing: 0.6,
+    handPaused: false, symmetry: false, handSmoothing: 0.6, voiceMode: 'paint',
   });
   toolRef.current = {
     tool, color, size, opacity, penStyle, handPaused,
-    symmetry: symmetryEnabled, handSmoothing: handSmooth ? 0.6 : 0,
+    symmetry: symmetryEnabled, handSmoothing: handSmooth ? 0.6 : 0, voiceMode,
   };
   const previousToolRef = useRef('CHORUS');
 
@@ -196,6 +198,12 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [floatingActive, setFloatingActive] = useState(false);
   const [sidebarPos, setSidebarPos] = useState(null); // null=докиран; {x,y}=откачен
   const [systemReadyTick, setSystemReadyTick] = useState(0);
+
+  // Save-on-exit guard
+  const hasUnsavedRef = useRef(false); // вдига се при всяка персистентна промяна
+  const exitAfterSaveRef = useRef(false); // Save & leave: навигирай след успешен запис
+  const [exitPrompt, setExitPrompt] = useState(false);
+  const markDirty = useCallback(() => { hasUnsavedRef.current = true; }, []);
 
   const { emotion, gesture, emotionRef, gestureRef, handPositionRef, landmarksBufRef, landmarkStampRef, detect, ready } =
     useMediaPipe(videoRef, liveEnabled);
@@ -406,12 +414,26 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artworkToEdit, systemReadyTick]);
 
-  // ── Цвят според текущата емоция
-  const applyEmotionColor = useCallback(() => {
-    const hex = EMOTION_HEX[emotionRef.current] || EMOTION_HEX.neutral;
+  // ── Emotion color — НЕПРЕКЪСНАТ режим: цветът следва текущата емоция на живо
+  const toggleEmotionColor = useCallback(() => {
+    setEmotionColorMode((on) => {
+      const next = !on;
+      showToast(next ? '🎨 Emotion color ON — color follows your mood' : '🎨 Emotion color OFF');
+      return next;
+    });
+  }, []);
+
+  // Докато режимът е включен, преливай цвета при смяна на емоцията (emotion е
+  // live state от useMediaPipe → focused→зелено, happy→жълто, без пак да натискаш).
+  useEffect(() => {
+    if (emotionColorMode) setColor(EMOTION_HEX[emotion] || EMOTION_HEX.neutral);
+  }, [emotion, emotionColorMode]);
+
+  // Ръчна смяна на цвят изключва emotion режима, за да не се „бори".
+  const handleManualColor = (hex) => {
     setColor(hex);
-    showToast(`🎨 Emotion color → ${hex}`);
-  }, [emotionRef]);
+    setEmotionColorMode(false);
+  };
 
   // ── Постави текст в центъра на платното (от гласовата команда „текст …")
   const placeVoiceText = useCallback((str) => {
@@ -427,13 +449,13 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   // пауза/продължаване на ръката, цвят-по-емоция и текст
   const { supported: voiceSupported } = useVoiceCommands({
     enabled: voiceEnabled,
-    onColor: setColor,
+    onColor: handleManualColor,
     onTool: selectTool,
     onPenStyle: (style) => {
       setPenStyle(style);
       if (toolRef.current.tool !== 'HAND') selectTool('HAND');
     },
-    onEmotionColor: applyEmotionColor,
+    onEmotionColor: toggleEmotionColor,
     onText: placeVoiceText,
     onClear: handleClear,
     onSave: () => setShowSaveModal(true),
@@ -454,6 +476,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   // ── Eyedropper
   const handleColorPicked = useCallback((hex) => {
     setColor(hex);
+    setEmotionColorMode(false);
     setTool(previousToolRef.current || 'BRUSH');
     showToast(`💧 Picked ${hex}`);
   }, []);
@@ -546,6 +569,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     if (w && h && (w !== canvasSize.w || h !== canvasSize.h)) {
       setCanvasSize({ w, h });
       resizeCanvasToRef.current?.(w, h);
+      hasUnsavedRef.current = false; // авто-fit при mount не е потребителска промяна
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemReadyTick]);
@@ -553,6 +577,32 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
   // ── Изход: изключи микрофона (камерата/ръката спират с unmount на
   // VideoProcessor/useMediaPipe; гласът — с useVoiceCommands).
   useEffect(() => () => stopAudio(), [stopAudio]);
+
+  // ── Save-on-exit: питай преди да напуснеш рисуването, ако има незапазено
+  const requestExit = () => {
+    if (hasUnsavedRef.current) setExitPrompt(true);
+    else navigate('landing');
+  };
+  const exitSaveAndLeave = () => {
+    exitAfterSaveRef.current = true;
+    setExitPrompt(false);
+    setShowSaveModal(true);
+  };
+  const exitDiscard = () => {
+    setExitPrompt(false);
+    navigate('landing');
+  };
+
+  // Нативен prompt при затваряне/презареждане на таба, докато има незапазено
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!hasUnsavedRef.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
   // ── Save flow
   const handleSave = async ({ title: t, author, description, generatePoem: wantPoem }) => {
@@ -596,7 +646,12 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       });
       setTitle(t);
       setShowSaveModal(false);
+      hasUnsavedRef.current = false; // запазено → няма незапазени промени
       showToast('✓ Saved to gallery');
+      if (exitAfterSaveRef.current) {
+        exitAfterSaveRef.current = false;
+        navigate('landing');
+      }
     } catch {
       showToast('Save failed — is the server running?');
     }
@@ -676,6 +731,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
               onSystemReady={onSystemReady}
               onTextPlace={handleTextPlace}
               onColorPicked={handleColorPicked}
+              onDirty={markDirty}
             />
           </div>
         </div>
@@ -716,7 +772,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       {/* ── HEADER ── */}
       <header className="absolute top-0 inset-x-0 z-20 flex items-center flex-wrap gap-2 px-4 min-h-14 py-1.5 bg-gradient-to-b from-ink/90 to-transparent">
         <button
-          onClick={() => navigate('landing')}
+          onClick={requestExit}
           className="text-sm text-gray-400 hover:text-white transition shrink-0"
         >
           ← Back
@@ -799,11 +855,14 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
             )}
           </button>
           <button
-            onClick={applyEmotionColor}
-            title="Emotion color — set the brush color from your current emotion"
-            className={headerIconBtn}
+            onClick={toggleEmotionColor}
+            title="Emotion color — the brush color keeps following your emotion while on"
+            className={`relative ${headerIconBtn} ${emotionColorMode ? 'border-cyan-400 bg-cyan-950/50 text-cyan-200 mode-glow-cyan' : ''}`}
           >
             🎨
+            {emotionColorMode && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 glow-pulse" />
+            )}
           </button>
           <button
             onClick={() => setShowInstructions(true)}
@@ -903,10 +962,10 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
         <input
           type="color"
           value={color}
-          onChange={(e) => setColor(e.target.value)}
+          onChange={(e) => handleManualColor(e.target.value)}
           disabled={!colorEnabled}
-          title="Color"
-          className={`w-9 h-9 ${colorEnabled ? '' : 'opacity-30 pointer-events-none'}`}
+          title={emotionColorMode ? 'Color follows your emotion — pick to override' : 'Color'}
+          className={`w-9 h-9 ${colorEnabled ? '' : 'opacity-30 pointer-events-none'} ${emotionColorMode ? 'ring-2 ring-cyan-400/70 rounded-lg' : ''}`}
         />
 
         <div className="flex flex-col items-center gap-0.5" title={`Size: ${size}px`}>
@@ -995,6 +1054,34 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
               }`}
             >
               {handSmooth ? '⚡ Smooth' : '〜 Raw'}
+            </button>
+          </div>
+        )}
+
+        {/* Voice paint режим — Paint / Burst */}
+        {tool === 'VOICE' && (
+          <div className="flex flex-col items-stretch gap-1 w-[88px] animate-fade-in">
+            <button
+              onClick={() => setVoiceMode('paint')}
+              title="Paint — your voice draws a flowing line"
+              className={`h-8 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition ${
+                voiceMode === 'paint'
+                  ? 'bg-violet-600/30 border border-violet-500 text-violet-100'
+                  : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
+              }`}
+            >
+              🎨 Paint
+            </button>
+            <button
+              onClick={() => setVoiceMode('burst')}
+              title="Burst — a loud sound explodes particles"
+              className={`h-8 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition ${
+                voiceMode === 'burst'
+                  ? 'bg-amber-600/30 border border-amber-500 text-amber-100'
+                  : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
+              }`}
+            >
+              ✦ Burst
             </button>
           </div>
         )}
@@ -1153,8 +1240,10 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
       {/* Подсказка за Voice paint */}
       {tool === 'VOICE' && liveEnabled && !voiceEnabled && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-violet-300 bg-ink-soft/70 border border-violet-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
-          Speak or hum to paint · move the cursor to steer · louder = thicker, higher pitch shifts the color
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-violet-300 bg-ink-soft/70 border border-violet-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in text-center max-w-[90vw]">
+          {voiceMode === 'burst'
+            ? 'Make a loud sound to burst particles · move your hand (or cursor) to aim'
+            : 'Speak or hum to paint · steer with your hand or the cursor · louder = thicker'}
         </div>
       )}
 
@@ -1174,9 +1263,41 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           defaultAuthor={authorDefault}
           mode="solo"
           onSave={handleSave}
-          onCancel={() => setShowSaveModal(false)}
+          onCancel={() => { exitAfterSaveRef.current = false; setShowSaveModal(false); }}
           saving={saving}
         />
+      )}
+
+      {/* ── Exit confirm (незапазени промени) ── */}
+      {exitPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-ink-soft border border-ink-line p-6 animate-slide-up">
+            <div className="text-lg font-display text-white mb-1">Leave the studio?</div>
+            <p className="text-sm text-gray-400 mb-5">
+              You have unsaved changes. Save this artwork to your gallery before leaving?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={exitSaveAndLeave}
+                className="w-full rounded-lg bg-violet-600 py-2 text-sm text-white hover:bg-violet-500 transition"
+              >
+                Save & leave
+              </button>
+              <button
+                onClick={exitDiscard}
+                className="w-full rounded-lg border border-ink-line py-2 text-sm text-gray-300 hover:bg-ink-line/50 transition"
+              >
+                Leave without saving
+              </button>
+              <button
+                onClick={() => setExitPrompt(false)}
+                className="w-full rounded-lg py-2 text-sm text-gray-500 hover:text-white transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {poemState && (
