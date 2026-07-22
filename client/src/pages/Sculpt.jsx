@@ -12,6 +12,7 @@ import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useAudio } from '../hooks/useAudio';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useRecorder } from '../hooks/useRecorder';
+import { EMOTION_HEX } from '../constants/emotions';
 import { MobileNotice } from '../components/MobileNotice';
 
 const TOOLS = [
@@ -38,7 +39,9 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [brush, setBrush] = useState({ mode: 'raise', radius: 3, strength: 1.2 });
   const [scatterOpts, setScatterOpts] = useState({ kind: 'tree', radius: 2, density: 3, erase: false });
   const [env, setEnv] = useState({ preset: 'studio', elevation: 50, azimuth: 35, water: false, grid: true, turntable: false });
-  const [penOpts, setPenOpts] = useState({ radius: 0.12, surface: 'ground' });
+  const [penOpts, setPenOpts] = useState({
+    radius: 0.12, surface: 'surface', hand: false, emotionColor: false,
+  });
 
   const [addOpen, setAddOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -61,8 +64,23 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
 
   const { saveArtwork, uploadVideo, saving } = useArtworkStore();
   const { initAudio, stopAudio, getAudioData } = useAudio();
-  const { emotion, emotionRef, detect } = useMediaPipe(videoRef, liveOn);
+  // Камерата е нужна за Live И за рисуване с ръка
+  const cameraOn = liveOn || (tool === 'pen' && penOpts.hand);
+  const { emotion, emotionRef, gestureRef, handPositionRef, detect } = useMediaPipe(videoRef, cameraOn);
   const recorder = useRecorder(() => engineRef.current?.renderer?.domElement);
+
+  // Прилага pen конфигурацията към engine-а (surface/radius/ръка/emotion цвят)
+  const applyPenConfig = useCallback((e = engineRef.current) => {
+    if (!e) return;
+    e.penOptions.surface = penOpts.surface;
+    e.penOptions.radius = penOpts.radius;
+    e.handGetter = penOpts.hand
+      ? () => ({ x: handPositionRef.current.x, y: handPositionRef.current.y, gesture: gestureRef.current })
+      : null;
+    e.penColorGetter = penOpts.emotionColor ? () => EMOTION_HEX[emotionRef.current] : null;
+  }, [penOpts, handPositionRef, gestureRef, emotionRef]);
+
+  useEffect(() => { applyPenConfig(); }, [applyPenConfig]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -134,7 +152,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
     }
     setTool(id);
     e.setTool(id === 'pen' || id === 'sculpt' || id === 'scatter' ? id : 'select');
-    if (id === 'pen') e.penOptions = { ...e.penOptions, ...penOpts };
+    if (id === 'pen') applyPenConfig(e);
   };
 
   const handleAddPrimitive = (prim) => {
@@ -345,7 +363,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
         </div>
       </header>
 
-      <VideoProcessor ref={videoRef} detect={detect} active={liveOn} />
+      <VideoProcessor ref={videoRef} detect={detect} active={cameraOn} />
 
       {/* ── BODY ── */}
       <div className="flex-1 flex overflow-hidden">
@@ -417,8 +435,9 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
 
           {/* Pen options */}
           {tool === 'pen' && (
-            <div className="absolute left-2 bottom-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 w-52 animate-fade-in space-y-2">
+            <div className="absolute left-2 bottom-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-3 w-60 animate-fade-in space-y-2.5">
               <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500">3D Pen</div>
+
               <label className="block text-[10px] text-gray-500">
                 <span className="flex justify-between mb-0.5">
                   <span>Thickness</span>
@@ -434,26 +453,54 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                   className="w-full accent-accent-violet h-1"
                 />
               </label>
-              <div className="flex gap-1.5">
-                {['ground', 'view'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      setPenOpts((o) => ({ ...o, surface: s }));
-                      if (engineRef.current) engineRef.current.penOptions.surface = s;
-                    }}
-                    className={`flex-1 rounded py-1.5 text-[11px] capitalize transition border ${
-                      penOpts.surface === s
-                        ? 'bg-accent-violet/25 border-accent-violet text-white'
-                        : 'border-ink-line text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {s === 'ground' ? '⬇ Ground' : '👁 In air'}
-                  </button>
-                ))}
+
+              <div>
+                <div className="text-[10px] text-gray-500 mb-1">Draw on</div>
+                <div className="flex gap-1.5">
+                  {[['surface', '✎ Surface'], ['air', '👁 In air'], ['ground', '⬇ Ground']].map(([s, label]) => (
+                    <button
+                      key={s}
+                      onClick={() => setPenOpts((o) => ({ ...o, surface: s }))}
+                      className={`flex-1 rounded py-1.5 text-[10px] transition border ${
+                        penOpts.surface === s
+                          ? 'bg-accent-violet/25 border-accent-violet text-white'
+                          : 'border-ink-line text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-[10px] text-gray-600">
-                Drag in the viewport to draw. "In air" draws on a plane facing the camera.
+
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setPenOpts((o) => ({ ...o, hand: !o.hand }))}
+                  className={`flex-1 rounded py-1.5 text-[11px] transition border ${
+                    penOpts.hand
+                      ? 'bg-accent-cyan/20 border-accent-cyan/60 text-accent-cyan'
+                      : 'border-ink-line text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {penOpts.hand ? '✋ Hand' : '🖱 Mouse'}
+                </button>
+                <button
+                  onClick={() => setPenOpts((o) => ({ ...o, emotionColor: !o.emotionColor }))}
+                  title="Pen color follows your emotion"
+                  className={`flex-1 rounded py-1.5 text-[11px] transition border ${
+                    penOpts.emotionColor
+                      ? 'bg-accent-cyan/20 border-accent-cyan/60 text-accent-cyan'
+                      : 'border-ink-line text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🎨 {penOpts.emotionColor ? 'Emotion' : 'Auto'}
+                </button>
+              </div>
+
+              <p className="text-[10px] text-gray-600 leading-snug">
+                {penOpts.hand
+                  ? 'Move your hand to steer, close your hand to draw. Orbit to build in 3D.'
+                  : '“Surface” sticks to objects (draw on a vase); “In air” floats where you look.'}
               </p>
             </div>
           )}

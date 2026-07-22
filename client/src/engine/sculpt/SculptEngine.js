@@ -57,7 +57,11 @@ export class SculptEngine {
     this.scatterMeshes = {};
     this.selected = null;
     this.tool = 'select'; // select | pen | sculpt | scatter
-    this.penOptions = { radius: 0.12, color: null, surface: 'ground' };
+    this.penOptions = { radius: 0.12, color: null, surface: 'surface' };
+    this.handGetter = null; // () => ({ x, y, gesture }) за рисуване с ръка
+    this.penColorGetter = null; // () => hex | null (напр. цвят по емоция)
+    this._handWasDrawing = false;
+    this._penLastNormal = new THREE.Vector3(0, 1, 0);
     this.brush = { mode: 'raise', radius: 3, strength: 1.2 };
     this.scatterOptions = { kind: 'tree', radius: 2, density: 3, erase: false };
     this.env = { preset: 'studio', elevation: 50, azimuth: 35, water: false, grid: true, turntable: false };
@@ -93,10 +97,16 @@ export class SculptEngine {
     this.controls = new OrbitControls(this.camera, renderer.domElement);
     this.controls.target.set(0, 1, 0);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.maxPolarAngle = Math.PI * 0.495;
-    this.controls.minDistance = 2;
-    this.controls.maxDistance = 140;
+    this.controls.dampingFactor = 0.06;
+    // Пълна орбита (виж фигурата от всички страни), но не изцяло отдолу
+    this.controls.minPolarAngle = 0.02;
+    this.controls.maxPolarAngle = Math.PI * 0.98;
+    this.controls.minDistance = 0.6;
+    this.controls.maxDistance = 200;
+    this.controls.zoomToCursor = true; // скрол зумва към курсора
+    this.controls.zoomSpeed = 1.1;
+    this.controls.screenSpacePanning = true; // Blender-подобен pan
+    this.controls.panSpeed = 0.85;
 
     // ── Хелпъри
     this.grid = new THREE.GridHelper(40, 40, 0x34343f, 0x1e1e26);
@@ -138,6 +148,7 @@ export class SculptEngine {
     // ── Гизмо
     this.transform = new TransformControls(this.camera, renderer.domElement);
     this.transform.setSize(0.9);
+    this.transform.setMode('translate'); // стрелките МЕСТЯТ по подразбиране (не мащабират)
     this.scene.add(this.transform.getHelper()); // r169+: контролът вече не е Object3D
     this.transform.addEventListener('dragging-changed', (e) => {
       this.controls.enabled = !e.value;
@@ -209,6 +220,9 @@ export class SculptEngine {
       const dt = this._clock.getDelta();
       const cam = this.usingOrtho ? this.orthoCamera : this.camera;
 
+      // Рисуване с ръка (3D писалка)
+      if (this.tool === 'pen' && this.handGetter) this._handPenStep();
+
       // Live пулс (звук + емоция) — не-деструктивно
       let spin = 0.25;
       if (this.live) spin = 0.25 + this._applyLive(dt);
@@ -244,16 +258,81 @@ export class SculptEngine {
     this.raycaster.setFromCamera(this._pointer, this.activeCamera());
   }
 
+  // Точка за писалката според режима:
+  //  surface — върху обект/терен (отместена по нормалата) → рисуваш по вази и др.;
+  //            при липса на попадение fallback към „air".
+  //  air/view — равнина към камерата през target → рисуваш в пространството.
+  //  ground   — подът.
   _penSurfacePoint() {
     const out = new THREE.Vector3();
-    if (this.penOptions.surface === 'view') {
-      const n = new THREE.Vector3();
-      this.activeCamera().getWorldDirection(n);
-      const anchor = this.controls.target;
-      this._viewPlane.setFromNormalAndCoplanarPoint(n, anchor);
-      return this.raycaster.ray.intersectPlane(this._viewPlane, out);
+    const surf = this.penOptions.surface;
+    if (surf === 'surface') {
+      const targets = this.terrain ? [...this.objects, this.terrain] : this.objects;
+      const hits = this.raycaster.intersectObjects(targets, false);
+      if (hits[0]) {
+        const h = hits[0];
+        const nrm = h.face
+          ? h.face.normal.clone().transformDirection(h.object.matrixWorld).normalize()
+          : new THREE.Vector3(0, 1, 0);
+        this._penLastNormal.copy(nrm);
+        return out.copy(h.point).addScaledVector(nrm, Math.max(0.02, this.penOptions.radius * 1.1));
+      }
+      return this._airPoint(out);
     }
-    return this.raycaster.ray.intersectPlane(this._groundPlane, out);
+    if (surf === 'ground') {
+      return this.raycaster.ray.intersectPlane(this._groundPlane, out);
+    }
+    return this._airPoint(out); // 'air' / 'view'
+  }
+
+  _airPoint(out) {
+    const n = new THREE.Vector3();
+    this.activeCamera().getWorldDirection(n);
+    this._viewPlane.setFromNormalAndCoplanarPoint(n, this.controls.target);
+    return this.raycaster.ray.intersectPlane(this._viewPlane, out);
+  }
+
+  // ── Натрупване на pen точки (общо за мишка и ръка)
+  _penBegin(pt) {
+    if (!pt) return false;
+    this._penPoints = [pt.clone()];
+    this._startPenPreview();
+    return true;
+  }
+  _penExtend(pt) {
+    if (!pt || !this._penPoints.length) return;
+    if (pt.distanceTo(this._penPoints[this._penPoints.length - 1]) > 0.06) {
+      this._penPoints.push(pt.clone());
+      this._updatePenPreview();
+    }
+  }
+  _penEnd() {
+    this._finalizePen();
+  }
+
+  // ── Рисуване с ръка (в loop-а, когато tool==='pen' и handGetter е зададен)
+  _handPenStep() {
+    const h = this.handGetter?.();
+    if (!h || !h.pos) {
+      if (this._handWasDrawing) this._handPenRelease();
+      return;
+    }
+    const drawing = h.gesture && h.gesture !== 'NO_HAND' && h.gesture !== 'OPEN_PALM';
+    this._pointer.set(h.pos.x * 2 - 1, -(h.pos.y * 2 - 1));
+    this.raycaster.setFromCamera(this._pointer, this.activeCamera());
+    const p = this._penSurfacePoint();
+    if (drawing && p) {
+      this.controls.enabled = false;
+      if (!this._handWasDrawing) { this._penBegin(p); this._handWasDrawing = true; }
+      else this._penExtend(p);
+    } else if (this._handWasDrawing) {
+      this._handPenRelease();
+    }
+  }
+  _handPenRelease() {
+    this._handWasDrawing = false;
+    this.controls.enabled = true;
+    if (this._penPoints.length) this._penEnd();
   }
 
   _terrainHit() {
@@ -267,12 +346,11 @@ export class SculptEngine {
     this._updatePointer(e);
     this._down = { x: e.clientX, y: e.clientY, onGizmo: !!this.transform.axis };
 
-    if (this.tool === 'pen') {
+    if (this.tool === 'pen' && !this.handGetter) {
       const p = this._penSurfacePoint();
       if (!p) return;
       this.controls.enabled = false;
-      this._penPoints = [p.clone()];
-      this._startPenPreview();
+      this._penBegin(p);
     } else if (this.tool === 'sculpt' || this.tool === 'scatter') {
       if (this.tool === 'sculpt' && !this.terrain) return;
       this.controls.enabled = false;
@@ -284,12 +362,9 @@ export class SculptEngine {
   _pointerMove(e) {
     this._updatePointer(e);
 
-    if (this.tool === 'pen' && this._penPoints.length) {
+    if (this.tool === 'pen' && !this.handGetter && this._penPoints.length) {
       const p = this._penSurfacePoint();
-      if (p && p.distanceTo(this._penPoints[this._penPoints.length - 1]) > 0.06) {
-        this._penPoints.push(p.clone());
-        this._updatePenPreview();
-      }
+      if (p) this._penExtend(p);
       return;
     }
 
@@ -311,8 +386,8 @@ export class SculptEngine {
   }
 
   _pointerUp(e) {
-    if (this.tool === 'pen' && this._penPoints.length) {
-      this._finalizePen();
+    if (this.tool === 'pen' && !this.handGetter && this._penPoints.length) {
+      this._penEnd();
       this.controls.enabled = true;
       return;
     }
@@ -383,7 +458,7 @@ export class SculptEngine {
     const radius = this.penOptions.radius;
     const geo = makeTubeGeometry(pts, radius);
     if (!geo) return;
-    const color = this.penOptions.color || randomColor();
+    const color = this.penColorGetter?.() || this.penOptions.color || randomColor();
     const mesh = new THREE.Mesh(geo, makeStandardMaterial(color));
     mesh.userData = {
       id: newId(), name: 'Stroke ' + idSeq, kind: 'tube',
@@ -401,7 +476,10 @@ export class SculptEngine {
     mesh.receiveShadow = true;
     this.objects.push(mesh);
     this.scene.add(mesh);
-    if (select) this.select(mesh);
+    if (select) {
+      this.select(mesh);
+      this.transform.setMode('translate'); // нов обект → стрелки за местене
+    }
     if (undo) this._pushUndo();
     this._notifyScene();
     return mesh;
@@ -549,6 +627,7 @@ export class SculptEngine {
   setTool(tool) {
     this.tool = tool;
     this.brushRing.visible = false;
+    if (this._handWasDrawing) this._handPenRelease();
     if (tool !== 'select') this.select(null);
   }
 
