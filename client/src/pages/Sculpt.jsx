@@ -2,11 +2,16 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { SculptCanvas } from '../components/sculpt/SculptCanvas';
 import { ScenePanel } from '../components/sculpt/ScenePanel';
 import { ProfileModal } from '../components/sculpt/ProfileModal';
+import { ViewportHud } from '../components/sculpt/ViewportHud';
+import { VideoProcessor } from '../components/VideoProcessor';
 import { SaveModal } from '../components/SaveModal';
 import { PRIMITIVE_LIST } from '../engine/sculpt/drawTools';
 import { DEFAULT_TERRAIN_PARAMS } from '../engine/sculpt/terrain';
 import { EXPORT_FORMATS, exportScene, bakeGroupForExport, downloadBlob } from '../engine/sculpt/exporters';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useAudio } from '../hooks/useAudio';
+import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useRecorder } from '../hooks/useRecorder';
 import { MobileNotice } from '../components/MobileNotice';
 
 const TOOLS = [
@@ -41,7 +46,23 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
   const [showSave, setShowSave] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const { saveArtwork, saving } = useArtworkStore();
+  // ── Blender-подобни viewport контроли
+  const [transformMode, setTransformMode] = useState('translate');
+  const [transformSpace, setTransformSpace] = useState('world');
+  const [snap, setSnap] = useState(false);
+  const [renderMode, setRenderMode] = useState('solid');
+  const [ortho, setOrtho] = useState(false);
+  const [stats, setStats] = useState(null);
+
+  // ── Live (audio + emotion) performance
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveIntensity, setLiveIntensity] = useState(1);
+  const videoRef = useRef(null);
+
+  const { saveArtwork, uploadVideo, saving } = useArtworkStore();
+  const { initAudio, stopAudio, getAudioData } = useAudio();
+  const { emotion, emotionRef, detect } = useMediaPipe(videoRef, liveOn);
+  const recorder = useRecorder(() => engineRef.current?.renderer?.domElement);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -56,13 +77,14 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
     setHasTerrain(!!e.terrain);
     if (e.terrain) setTerrainParams({ ...e.terrain.userData.params });
     setEnv({ ...e.env });
+    setStats(e.getStats());
   }, []);
 
   // ── Autosave (localStorage) на всеки 4s
   useEffect(() => {
     const id = setInterval(() => {
       const e = engineRef.current;
-      if (!e) return;
+      if (!e || e.live) return; // при Live обектите са в performGroup — не сериализирай
       try {
         localStorage.setItem(
           STORAGE_KEY,
@@ -184,6 +206,67 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
     syncScene();
   };
 
+  // ── Viewport controls
+  const handleTransformMode = (m) => { setTransformMode(m); engineRef.current?.setTransformMode(m); };
+  const handleTransformSpace = (s) => { setTransformSpace(s); engineRef.current?.setTransformSpace(s); };
+  const handleSnap = (v) => { setSnap(v); engineRef.current?.setSnapping(v); };
+  const handleRenderMode = (m) => { setRenderMode(m); engineRef.current?.setRenderMode(m); };
+  const handleView = (v) => engineRef.current?.setView(v);
+  const handleFrameAll = () => engineRef.current?.frameAll();
+  const handleToggleOrtho = () => setOrtho(!!engineRef.current?.toggleOrtho());
+
+  useEffect(() => {
+    if (engineRef.current) engineRef.current.liveIntensity = liveIntensity;
+  }, [liveIntensity]);
+
+  // ── Live (audio + emotion) performance
+  const toggleLive = async () => {
+    const e = engineRef.current;
+    if (!e) return;
+    if (liveOn) {
+      if (recorder.recording) recorder.stop();
+      e.setLive(false);
+      stopAudio();
+      setLiveOn(false);
+      showToast('Live off');
+    } else {
+      try {
+        await initAudio();
+      } catch {
+        showToast('Microphone denied — Live needs the mic');
+        return;
+      }
+      e.audioGetter = getAudioData;
+      e.emotionGetter = () => emotionRef.current;
+      e.liveIntensity = liveIntensity;
+      e.setLive(true);
+      setRenderMode('rendered');
+      setLiveOn(true);
+      showToast('🔴 Live — move to sound, palette follows your emotion');
+    }
+  };
+
+  const handleSaveClip = async () => {
+    if (!recorder.result) return;
+    try {
+      const { url } = await uploadVideo(recorder.result.blob);
+      await saveArtwork({
+        title: `${projectName} — live`,
+        imageData: engineRef.current?.snapshotPng(1.2),
+        videoUrl: url,
+        duration: Math.round(recorder.elapsed || 0),
+        mode: 'sculpt',
+      });
+      recorder.clearResult();
+      showToast('✓ Live clip saved to gallery');
+    } catch {
+      showToast('Save failed — is the server running?');
+    }
+  };
+
+  // ── Изход: спри микрофона (камерата спира с unmount на VideoProcessor)
+  useEffect(() => () => stopAudio(), [stopAudio]);
+
   return (
     <div className="h-full w-full bg-ink flex flex-col overflow-hidden">
       <MobileNotice label="The 3D sculpt editor needs a mouse and a larger screen" />
@@ -241,13 +324,28 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
           </div>
 
           <button
+            onClick={toggleLive}
+            title="Live — the sculpture reacts to sound and your emotion; record it"
+            className={`rounded-lg px-3 h-8 text-xs font-bold transition border ${
+              liveOn
+                ? 'border-red-500 bg-red-600/25 text-red-200'
+                : 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20'
+            }`}
+          >
+            {liveOn ? '🔴 Live' : '◉ Live'}
+          </button>
+
+          <button
             onClick={() => setShowSave(true)}
-            className="rounded-lg bg-accent-violet/80 px-4 h-8 text-xs font-bold text-ink hover:bg-accent-violet transition"
+            disabled={liveOn}
+            className="rounded-lg bg-accent-violet/80 px-4 h-8 text-xs font-bold text-ink hover:bg-accent-violet disabled:opacity-40 transition"
           >
             💾 Save to Gallery
           </button>
         </div>
       </header>
+
+      <VideoProcessor ref={videoRef} detect={detect} active={liveOn} />
 
       {/* ── BODY ── */}
       <div className="flex-1 flex overflow-hidden">
@@ -278,9 +376,33 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
             onToolDone={() => {}}
           />
 
+          <ViewportHud
+            transformMode={transformMode}
+            transformSpace={transformSpace}
+            snap={snap}
+            onMode={handleTransformMode}
+            onSpace={handleTransformSpace}
+            onSnap={handleSnap}
+            renderMode={renderMode}
+            onRenderMode={handleRenderMode}
+            ortho={ortho}
+            onView={handleView}
+            onFrameAll={handleFrameAll}
+            onToggleOrtho={handleToggleOrtho}
+            stats={stats}
+            liveOn={liveOn}
+            onToggleLive={toggleLive}
+            liveIntensity={liveIntensity}
+            onIntensity={setLiveIntensity}
+            emotion={emotion}
+            recorder={recorder}
+            onSaveClip={handleSaveClip}
+            onDiscardClip={recorder.clearResult}
+          />
+
           {/* Add primitive popover */}
           {addOpen && (
-            <div className="absolute left-2 top-2 z-30 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2 animate-fade-in grid grid-cols-2 gap-1 w-56">
+            <div className="absolute left-2 top-12 z-40 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2 animate-fade-in grid grid-cols-2 gap-1 w-56">
               {PRIMITIVE_LIST.map((p) => (
                 <button
                   key={p.id}

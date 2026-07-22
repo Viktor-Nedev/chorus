@@ -4,10 +4,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EMOTION_HEX } from '../../constants/emotions';
+import { viewPresetOffset, audioPulse } from './sculptMath';
 import {
   PRIMITIVES, makeStandardMaterial, makeTubeGeometry, makeLatheGeometry,
   makeExtrudeGeometry, decimatePoints, randomColor,
 } from './drawTools';
+
+export { viewPresetOffset, audioPulse };
 import {
   createTerrainMesh, sculptTerrain, createScatterMesh, paintScatter,
   generateHeights, applyHeightsToGeometry, DEFAULT_TERRAIN_PARAMS,
@@ -56,6 +65,17 @@ export class SculptEngine {
     this._redo = [];
     this._restoring = false;
 
+    // Rendered look + Live (audio/emotion) режим
+    this.renderMode = 'solid'; // 'solid' | 'rendered' | 'wireframe'
+    this.live = false;
+    this.liveIntensity = 1;
+    this.audioGetter = null; // () => { bassLevel, totalLevel, ... }
+    this.emotionGetter = null; // () => 'happy' | ...
+    this._perform = null; // performGroup докато Live е активен
+    this._emoColor = new THREE.Color('#ffffff');
+    this.usingOrtho = false;
+    this.orthoCamera = null;
+
     // ── Renderer / scene / camera
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -95,6 +115,25 @@ export class SculptEngine {
     sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28; sc.far = 160;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+
+    // ── Post-processing (bloom) + image-based environment за реалистични
+    // отражения по metalness/roughness. Bloom върви само в „Rendered".
+    this.composer = new EffectComposer(renderer);
+    this._renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(this._renderPass);
+    this._bloomBase = 0.6;
+    this.bloom = new UnrealBloomPass(
+      new THREE.Vector2(host.clientWidth || 1, host.clientHeight || 1),
+      this._bloomBase, 0.4, 0.85
+    );
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    this._envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    this.scene.environment = this._envRT.texture;
+    this.scene.environmentIntensity = 0.35;
+    pmrem.dispose();
 
     // ── Гизмо
     this.transform = new TransformControls(this.camera, renderer.domElement);
@@ -156,7 +195,10 @@ export class SculptEngine {
       if (!w || !h) return;
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
+      if (this.orthoCamera) this._updateOrthoFrustum(w, h);
       renderer.setSize(w, h);
+      this.composer.setSize(w, h);
+      this.bloom.setSize(w, h);
     });
     this._ro.observe(host);
 
@@ -165,14 +207,21 @@ export class SculptEngine {
     const loop = () => {
       this._raf = requestAnimationFrame(loop);
       const dt = this._clock.getDelta();
+      const cam = this.usingOrtho ? this.orthoCamera : this.camera;
+
+      // Live пулс (звук + емоция) — не-деструктивно
+      let spin = 0.25;
+      if (this.live) spin = 0.25 + this._applyLive(dt);
+
       if (this.env.turntable && !this.transform.dragging) {
-        const angle = dt * 0.25;
-        const p = this.camera.position.clone().sub(this.controls.target);
+        const angle = dt * spin;
+        const p = cam.position.clone().sub(this.controls.target);
         p.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-        this.camera.position.copy(this.controls.target).add(p);
+        cam.position.copy(this.controls.target).add(p);
       }
       this.controls.update();
-      renderer.render(this.scene, this.camera);
+      if (this.renderMode === 'rendered') this.composer.render();
+      else renderer.render(this.scene, cam);
     };
     loop();
 
@@ -182,20 +231,24 @@ export class SculptEngine {
 
   // ═══════════ Pointer / tools ═══════════
 
+  activeCamera() {
+    return this.usingOrtho && this.orthoCamera ? this.orthoCamera : this.camera;
+  }
+
   _updatePointer(e) {
     const r = this.renderer.domElement.getBoundingClientRect();
     this._pointer.set(
       ((e.clientX - r.left) / r.width) * 2 - 1,
       -((e.clientY - r.top) / r.height) * 2 + 1
     );
-    this.raycaster.setFromCamera(this._pointer, this.camera);
+    this.raycaster.setFromCamera(this._pointer, this.activeCamera());
   }
 
   _penSurfacePoint() {
     const out = new THREE.Vector3();
     if (this.penOptions.surface === 'view') {
       const n = new THREE.Vector3();
-      this.camera.getWorldDirection(n);
+      this.activeCamera().getWorldDirection(n);
       const anchor = this.controls.target;
       this._viewPlane.setFromNormalAndCoplanarPoint(n, anchor);
       return this.raycaster.ray.intersectPlane(this._viewPlane, out);
@@ -210,7 +263,7 @@ export class SculptEngine {
   }
 
   _pointerDown(e) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || this.live) return; // Live е performance режим — без редакция
     this._updatePointer(e);
     this._down = { x: e.clientX, y: e.clientY, onGizmo: !!this.transform.axis };
 
@@ -504,6 +557,181 @@ export class SculptEngine {
     this.controls.target.copy(this.selected.position);
   }
 
+  // ═══════════ Viewport: render mode / space / snap / view / stats ═══════════
+
+  setRenderMode(mode) {
+    const wire = mode === 'wireframe';
+    const mats = [...this.objects.map((o) => o.material), this.terrain?.material].filter(Boolean);
+    for (const m of mats) {
+      if (wire) {
+        if (m.userData._wireSaved === undefined) m.userData._wireSaved = m.wireframe;
+        m.wireframe = true;
+      } else if (m.userData._wireSaved !== undefined) {
+        m.wireframe = m.userData._wireSaved;
+        delete m.userData._wireSaved;
+      }
+    }
+    this.renderMode = mode;
+  }
+
+  setTransformSpace(space) {
+    this.transform.setSpace(space); // 'local' | 'world'
+  }
+
+  setSnapping(on) {
+    this.transform.setTranslationSnap(on ? 0.25 : null);
+    this.transform.setRotationSnap(on ? THREE.MathUtils.degToRad(15) : null);
+    this.transform.setScaleSnap(on ? 0.1 : null);
+  }
+
+  setView(name) {
+    const off = viewPresetOffset(name);
+    const dir = new THREE.Vector3(off[0], off[1], off[2]).normalize();
+    const target = this.controls.target;
+    const cam = this.activeCamera();
+    const dist = cam.position.distanceTo(target) || 14;
+    cam.position.copy(target).addScaledVector(dir, dist);
+    cam.lookAt(target);
+    this.controls.update();
+  }
+
+  frameAll() {
+    const box = new THREE.Box3();
+    let has = false;
+    for (const o of this.objects) if (o.visible) { box.expandByObject(o); has = true; }
+    if (this.terrain) { box.expandByObject(this.terrain); has = true; }
+    if (!has) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3()).length() || 6;
+    this.controls.target.copy(center);
+    const cam = this.activeCamera();
+    let dir = cam.position.clone().sub(center);
+    if (dir.lengthSq() < 0.001) dir.set(1, 0.7, 1);
+    dir.normalize();
+    cam.position.copy(center).addScaledVector(dir, size * 0.9 + 2);
+    if (this.usingOrtho) this._updateOrthoFrustum(this.host.clientWidth, this.host.clientHeight, size);
+    this.controls.update();
+  }
+
+  _updateOrthoFrustum(w, h, span) {
+    if (!this.orthoCamera) return;
+    const aspect = (w || 1) / (h || 1);
+    const s = (span != null ? span : this.orthoCamera.position.distanceTo(this.controls.target) || 14) * 0.55;
+    this.orthoCamera.left = -s * aspect;
+    this.orthoCamera.right = s * aspect;
+    this.orthoCamera.top = s;
+    this.orthoCamera.bottom = -s;
+    this.orthoCamera.near = 0.1;
+    this.orthoCamera.far = 2000;
+    this.orthoCamera.updateProjectionMatrix();
+  }
+
+  toggleOrtho() {
+    const w = this.host.clientWidth, h = this.host.clientHeight;
+    if (!this.usingOrtho) {
+      if (!this.orthoCamera) this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2000);
+      this.orthoCamera.position.copy(this.camera.position);
+      this.orthoCamera.up.copy(this.camera.up);
+      this._updateOrthoFrustum(w, h);
+      this.orthoCamera.lookAt(this.controls.target);
+      this.usingOrtho = true;
+    } else {
+      this.camera.position.copy(this.orthoCamera.position);
+      this.usingOrtho = false;
+    }
+    const cam = this.activeCamera();
+    this.controls.object = cam;
+    this.transform.camera = cam;
+    this._renderPass.camera = cam;
+    this.controls.update();
+    return this.usingOrtho;
+  }
+
+  getStats() {
+    let vertices = 0;
+    let triangles = 0;
+    const count = (geo, instances = 1) => {
+      if (!geo) return;
+      const pos = geo.getAttribute('position');
+      if (pos) vertices += pos.count * instances;
+      const tris = geo.index ? geo.index.count / 3 : (pos ? pos.count / 3 : 0);
+      triangles += tris * instances;
+    };
+    for (const o of this.objects) if (o.visible) count(o.geometry);
+    if (this.terrain) count(this.terrain.geometry);
+    let scatter = 0;
+    for (const m of Object.values(this.scatterMeshes)) {
+      const n = m.userData.items?.length || 0;
+      scatter += n;
+      count(m.geometry, n);
+    }
+    return { objects: this.objects.length, vertices: Math.round(vertices), triangles: Math.round(triangles), scatter };
+  }
+
+  // ═══════════ Live (audio + emotion) performance ═══════════
+
+  setLive(on) {
+    if (on === this.live) return;
+    this.live = on;
+    if (on) {
+      this.select(null);
+      this._perform = new THREE.Group();
+      this._perform.position.copy(this.controls.target);
+      this.scene.add(this._perform);
+      for (const o of [...this.objects]) {
+        if (o.material) {
+          o.userData._baseEmi = o.material.emissiveIntensity ?? 1;
+          o.userData._baseEmiCol = o.material.emissive.getHex();
+          o.material.emissive.copy(o.material.color); // свети в собствения си цвят
+        }
+        this._perform.attach(o); // пази world transform
+      }
+      this.renderMode = 'rendered';
+    } else {
+      if (this._perform) {
+        for (const o of [...this.objects]) this.scene.attach(o);
+        this.scene.remove(this._perform);
+        this._perform = null;
+      }
+      for (const o of this.objects) {
+        if (o.material && o.userData._baseEmi !== undefined) {
+          o.material.emissiveIntensity = o.userData._baseEmi;
+          o.material.emissive.setHex(o.userData._baseEmiCol ?? 0x000000);
+          delete o.userData._baseEmi;
+          delete o.userData._baseEmiCol;
+        }
+      }
+      this.bloom.strength = this._bloomBase;
+      this.setEnv({}); // върни осветлението
+    }
+  }
+
+  // Извиква се всеки кадър при Live; връща допълнителна turntable скорост.
+  _applyLive() {
+    const audio = this.audioGetter?.() || {};
+    const level = audioPulse(audio.totalLevel || 0) * this.liveIntensity;
+    const bass = Math.max(0, Math.min(1, audio.bassLevel || 0)) * this.liveIntensity;
+
+    if (this._perform) {
+      const s = 1 + level * 0.14;
+      this._perform.scale.lerp(new THREE.Vector3(s, s, s), 0.3);
+    }
+    for (const o of this.objects) {
+      if (o.material && 'emissiveIntensity' in o.material) {
+        const base = o.userData._baseEmi ?? 1;
+        o.material.emissiveIntensity = base + level * 1.8;
+      }
+    }
+    this.bloom.strength = this._bloomBase + level * 1.1 + bass * 0.5;
+
+    const emo = this.emotionGetter?.();
+    if (emo && EMOTION_HEX[emo]) {
+      this._emoColor.lerp(new THREE.Color(EMOTION_HEX[emo]), 0.02);
+      this.hemi.color.copy(this._emoColor);
+    }
+    return level * 0.9;
+  }
+
   // ═══════════ Terrain / Environment ═══════════
 
   addTerrain(params = {}) {
@@ -693,11 +921,22 @@ export class SculptEngine {
 
   snapshotPng(scale = 2) {
     const prev = this.renderer.getPixelRatio();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio * scale, 3));
-    this.renderer.render(this.scene, this.camera);
+    const w = this.host.clientWidth, h = this.host.clientHeight;
+    const pr = Math.min(window.devicePixelRatio * scale, 3);
+    const cam = this.activeCamera();
+    this.renderer.setPixelRatio(pr);
+    if (this.renderMode === 'rendered') {
+      this.composer.setPixelRatio(pr);
+      this.composer.setSize(w, h);
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, cam);
+    }
     const dataURL = this.renderer.domElement.toDataURL('image/png');
     this.renderer.setPixelRatio(prev);
-    this.renderer.render(this.scene, this.camera);
+    this.composer.setPixelRatio(prev);
+    this.composer.setSize(w, h);
+    this.renderer.render(this.scene, cam);
     return dataURL;
   }
 
@@ -782,6 +1021,8 @@ export class SculptEngine {
       o.material.dispose();
     }
     this.removeTerrain({ notify: false });
+    this.composer?.dispose?.();
+    this._envRT?.dispose?.();
     this.renderer.dispose();
     el.remove();
   }
