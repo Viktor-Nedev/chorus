@@ -3,13 +3,21 @@ import { useState, useRef, useEffect } from 'react';
 const hsl = (c) => (c ? `hsl(${c.h}, ${c.s}%, ${c.l}%)` : '#aaa');
 
 // Сгъваем чат панел (дясно). Badge с непрочетени при затворен панел.
-export function ChatPanel({ messages, onSend, myId }) {
+export function ChatPanel({ messages, onSend, myId, forceOpen = false, placeholder = 'Message…' }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [unread, setUnread] = useState(0);
   const endRef = useRef(null);
   const openRef = useRef(open);
   openRef.current = open;
+
+  // Pictionary → отвори чата автоматично, за да се познава
+  useEffect(() => {
+    if (forceOpen) {
+      setOpen(true);
+      setUnread(0);
+    }
+  }, [forceOpen]);
 
   useEffect(() => {
     if (openRef.current) {
@@ -57,14 +65,20 @@ export function ChatPanel({ messages, onSend, myId }) {
             {messages.length === 0 && (
               <p className="text-[11px] text-gray-600 text-center pt-6">Say hi to the chorus 👋</p>
             )}
-            {messages.map((m, i) => (
-              <div key={i} className="text-xs leading-relaxed break-words">
-                <span className="font-bold" style={{ color: hsl(m.color) }}>
-                  {m.userId === myId ? 'you' : m.nickname}
-                </span>
-                <span className="text-gray-300"> {m.text}</span>
-              </div>
-            ))}
+            {messages.map((m, i) =>
+              m.system ? (
+                <div key={i} className="text-[11px] leading-relaxed text-center text-accent-cyan font-medium py-0.5">
+                  {m.text}
+                </div>
+              ) : (
+                <div key={i} className="text-xs leading-relaxed break-words">
+                  <span className="font-bold" style={{ color: hsl(m.color) }}>
+                    {m.userId === myId ? 'you' : m.nickname}
+                  </span>
+                  <span className="text-gray-300"> {m.text}</span>
+                </div>
+              )
+            )}
             <div ref={endRef} />
           </div>
           <div className="p-2 border-t border-ink-line flex gap-1.5 shrink-0">
@@ -73,7 +87,7 @@ export function ChatPanel({ messages, onSend, myId }) {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()}
               maxLength={200}
-              placeholder="Message…"
+              placeholder={placeholder}
               className="flex-1 rounded-lg bg-ink border border-ink-line px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-accent-cyan"
             />
             <button

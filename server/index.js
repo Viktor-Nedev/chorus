@@ -14,6 +14,25 @@ const { router: usersRouter, recordBattleWin, recordArenaRounds } = require('./r
 const { router: videosRouter, serveVideo } = require('./routes/videos');
 const { verifyToken } = require('./middleware/auth');
 const { judgeRound } = require('./services/arenaJudge');
+const {
+  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick,
+  isCorrectGuess, normalizeGuess, pictionaryScore, pictionaryDrawerScore, impostorScores,
+} = require('./services/arenaGames');
+
+// ── Drawing op validation (multiplayer) ──
+const OP_TYPES = new Set(['brush', 'line', 'rect', 'circle']);
+function validateOp(data, userId) {
+  if (!data || !Array.isArray(data.points) || data.points.length < 1) return null;
+  return {
+    userId,
+    type: OP_TYPES.has(data.type) ? data.type : 'brush',
+    color: typeof data.color === 'string' ? data.color.slice(0, 24) : '#ffffff',
+    size: Math.min(60, Math.max(1, Number(data.size) || 4)),
+    opacity: Math.min(1, Math.max(0, data.opacity == null ? 1 : Number(data.opacity))),
+    erase: !!data.erase,
+    points: data.points.slice(0, 600).map((p) => [Number(p[0]) || 0, Number(p[1]) || 0]),
+  };
+}
 
 // ── Game Arena: prompt-ове за рундовете (локални — без API квота) ──
 const DRAW_PROMPTS = [
@@ -31,7 +50,7 @@ const MEMORY_PROMPTS = [
   { emoji: '🎸', label: 'the guitar you just saw' },
   { emoji: '🐘', label: 'the elephant you just saw' },
 ];
-const ROUND_KINDS = ['draw', 'memory', 'blind'];
+const ROUND_KINDS = ['draw', 'pictionary', 'memory', 'impostor', 'blind'];
 const ROUND_POINTS = [100, 60, 40]; // 1-во/2-ро/3-то място; всички останали +20
 
 const app = express();
@@ -110,6 +129,7 @@ io.on('connection', (socket) => {
           {
             userId: myUserId,
             accountId: myAccountId,
+            socketId: socket.id,
             nickname: String(nickname || account?.username || 'artist').slice(0, 20),
             baseColor: color,
             emotion: 'neutral',
@@ -159,6 +179,7 @@ io.on('connection', (socket) => {
     const userData = {
       userId: myUserId,
       accountId: myAccountId,
+      socketId: socket.id,
       nickname: String(nickname || account?.username || 'artist').slice(0, 20),
       baseColor: color,
       emotion: 'neutral',
@@ -185,23 +206,30 @@ io.on('connection', (socket) => {
     console.log(`${nickname} joined session ${sessionCode}`);
   });
 
-  // ── Споделено рисуване ──
+  // ── Споделено рисуване (op-модел: brush/line/rect/circle) ──
   socket.on('STROKE', (data) => {
     const session = mySession();
     const user = myUser();
-    if (!session || !user || !Array.isArray(data?.points)) return;
-    // По време на battle всеки рисува на собствен слой — не broadcast-вай
+    if (!session || !user) return;
+    const op = validateOp(data, myUserId);
+    if (!op) return;
+    const arena = session.arena;
+
+    // Pictionary: САМО рисуващият рисува; ops се препращат на временен слой
+    if (arena && arena.kind === 'pictionary' && arena.phase === 'drawing') {
+      if (myUserId !== arena.drawerId) return;
+      socket.to(mySessionCode).emit('PICTIONARY_STROKE', op);
+      return;
+    }
+    // Battle / arena рунд (draw/memory/blind/impostor): рисува се на личен слой,
+    // не се broadcast-ва (вижда се чак при reveal).
     if (session.battle?.phase === 'drawing') return;
-    const stroke = {
-      userId: myUserId,
-      color: typeof data.color === 'string' ? data.color.slice(0, 24) : '#ffffff',
-      size: Math.min(60, Math.max(1, Number(data.size) || 4)),
-      erase: !!data.erase,
-      points: data.points.slice(0, 600).map((p) => [Number(p[0]) || 0, Number(p[1]) || 0]),
-    };
-    session.strokes.push(stroke);
+    if (arena && ['drawing', 'collect'].includes(arena.phase)) return;
+
+    // Общо споделено платно
+    session.strokes.push(op);
     if (session.strokes.length > 4000) session.strokes.shift();
-    socket.to(mySessionCode).emit('STROKE', stroke);
+    socket.to(mySessionCode).emit('STROKE', op);
   });
 
   socket.on('CLEAR_CANVAS', () => {
@@ -211,12 +239,34 @@ io.on('connection', (socket) => {
     io.to(mySessionCode).emit('CANVAS_CLEARED');
   });
 
-  // ── Чат ──
+  // ── Чат (+ Pictionary познаване през чата) ──
   socket.on('CHAT', ({ text }) => {
     const session = mySession();
     const user = myUser();
     const t = String(text || '').trim().slice(0, 200);
     if (!session || !user || !t) return;
+
+    const arena = session.arena;
+    if (arena && arena.kind === 'pictionary' && arena.phase === 'drawing') {
+      const containsWord = normalizeGuess(t).includes(normalizeGuess(arena.secret));
+      if (myUserId === arena.drawerId) {
+        if (containsWord) return; // рисуващият да не спойлва думата
+      } else {
+        if (!arena.guessed[myUserId] && isCorrectGuess(t, arena.secret)) {
+          // Позна! Не показвай думата — само системно съобщение + точки.
+          arena.guessed[myUserId] = true;
+          arena.guessOrder.push(myUserId);
+          const sys = { system: true, text: `${user.nickname} guessed the drawing! ✅`, at: Date.now() };
+          session.chat.push(sys);
+          io.to(mySessionCode).emit('CHAT', sys);
+          io.to(mySessionCode).emit('PICTIONARY_GUESSED', { userId: myUserId, count: arena.guessOrder.length });
+          if (arena.guessOrder.length >= arena.guessers) finishPictionary();
+          return;
+        }
+        if (containsWord) return; // анти-спойл
+      }
+    }
+
     const msg = {
       userId: myUserId,
       nickname: user.nickname,
@@ -343,38 +393,39 @@ io.on('connection', (socket) => {
 
   // ══════════ GAME ARENA: рундове с точки и AI съдия ══════════
 
-  const arenaComputeResults = async (ranking, comment, aiJudged) => {
+  // Приложи точки за рунда (обща за всички видове игри) → results → next/podium.
+  const applyRoundPoints = (pointsMap, extra = {}) => {
     const session = mySession();
     const arena = session?.arena;
     if (!arena) return;
     arena.phase = 'results';
-    const results = ranking.map((uid, i) => {
-      const gained = ROUND_POINTS[i] ?? 20;
-      arena.scores[uid] = (arena.scores[uid] || 0) + gained;
-      const entry = arena.entries[uid];
-      return {
+    const uids = Object.keys(pointsMap);
+    for (const uid of uids) arena.scores[uid] = (arena.scores[uid] || 0) + (pointsMap[uid] || 0);
+    const results = uids
+      .map((uid) => ({
         userId: uid,
-        nickname: entry?.nickname || session.users.get(uid)?.nickname || '?',
-        png: entry?.png || null,
-        gained,
+        nickname: session.users.get(uid)?.nickname || arena.entries[uid]?.nickname || arena.names[uid] || '?',
+        png: arena.entries[uid]?.png || null,
+        gained: pointsMap[uid] || 0,
         total: arena.scores[uid],
-      };
-    });
-    // Персистирай точките към акаунтите — един запис за целия рунд
+      }))
+      .sort((a, b) => b.gained - a.gained);
     recordArenaRounds(
-      ranking.map((uid, i) => ({
-        accountId: session.users.get(uid)?.accountId,
-        points: ROUND_POINTS[i] ?? 20,
-        won: i === 0,
-        aiJudged,
+      results.map((r, i) => ({
+        accountId: session.users.get(r.userId)?.accountId,
+        points: r.gained,
+        won: i === 0 && r.gained > 0,
+        aiJudged: !!extra.aiJudged,
       }))
     );
     io.to(mySessionCode).emit('ARENA_RESULTS', {
       round: arena.round,
       totalRounds: arena.totalRounds,
       results,
-      comment,
-      aiJudged,
+      comment: extra.comment || null,
+      aiJudged: !!extra.aiJudged,
+      reveal: extra.reveal || null,
+      kind: arena.kind,
     });
     arena.nextTimer = setTimeout(() => {
       if (session.arena !== arena) return;
@@ -393,15 +444,44 @@ io.on('connection', (socket) => {
     }, 8000);
   };
 
+  // draw / memory / blind: класация → ROUND_POINTS
+  const arenaComputeResults = (ranking, comment, aiJudged) => {
+    const pointsMap = {};
+    ranking.forEach((uid, i) => { pointsMap[uid] = ROUND_POINTS[i] ?? 20; });
+    applyRoundPoints(pointsMap, { comment, aiJudged });
+  };
+
+  // pictionary: точки на познали (по ред) + на рисуващия (по дял познали)
+  const finishPictionary = () => {
+    const session = mySession();
+    const arena = session?.arena;
+    if (!arena || arena.kind !== 'pictionary' || arena.phase !== 'drawing') return;
+    clearTimeout(arena.drawTimer);
+    const pointsMap = {};
+    arena.guessOrder.forEach((uid, i) => { pointsMap[uid] = pictionaryScore(i); });
+    if (arena.drawerId) pointsMap[arena.drawerId] = pictionaryDrawerScore(arena.guessOrder.length, arena.guessers);
+    const comment = arena.guessOrder.length === 0
+      ? `Nobody guessed it — the word was “${arena.secret}”.`
+      : `The word was “${arena.secret}”.`;
+    io.to(mySessionCode).emit('PICTIONARY_END');
+    applyRoundPoints(pointsMap, { reveal: { word: arena.secret, drawerId: arena.drawerId }, comment });
+  };
+
   const finishArenaCollect = async () => {
     const session = mySession();
     const arena = session?.arena;
     if (!arena || arena.phase !== 'collect') return;
     clearTimeout(arena.collectTimer);
     const entries = Object.values(arena.entries);
-    if (entries.length === 0) {
-      // Никой не предаде — прескочи рунда
+    if (entries.length === 0 && arena.kind !== 'impostor') {
       arenaComputeResults([], 'Nobody submitted a drawing this round!', false);
+      return;
+    }
+    // Impostor: винаги гласуване „кой е фалшивият?"
+    if (arena.kind === 'impostor') {
+      arena.phase = 'voting';
+      io.to(mySessionCode).emit('ARENA_GALLERY', { entries });
+      arena.voteTimer = setTimeout(() => finishArenaVoting(), 25000);
       return;
     }
     // Малко играчи (или сам) → AI съдия; иначе гласуване
@@ -422,11 +502,21 @@ io.on('connection', (socket) => {
     const arena = session?.arena;
     if (!arena || arena.phase !== 'voting') return;
     clearTimeout(arena.voteTimer);
+
+    if (arena.kind === 'impostor') {
+      const players = [...session.users.keys()];
+      const { scores, caught, suspectId } = impostorScores(arena.votes, arena.impostorId, players);
+      const impNick = session.users.get(arena.impostorId)?.nickname || '?';
+      applyRoundPoints(scores, {
+        reveal: { impostorId: arena.impostorId, impostorNickname: impNick, caught, suspectId },
+        comment: caught ? '🕵 The impostor was caught!' : '🎭 The impostor fooled everyone!',
+      });
+      return;
+    }
+
     const tally = {};
     for (const t of Object.values(arena.votes)) tally[t] = (tally[t] || 0) + 1;
-    const ranking = Object.keys(arena.entries).sort(
-      (a, b) => (tally[b] || 0) - (tally[a] || 0)
-    );
+    const ranking = Object.keys(arena.entries).sort((a, b) => (tally[b] || 0) - (tally[a] || 0));
     arenaComputeResults(ranking, null, false);
   };
 
@@ -434,7 +524,67 @@ io.on('connection', (socket) => {
     const session = mySession();
     if (!session) return;
     const arena = session.arena;
-    const kind = ROUND_KINDS[(n - 1) % ROUND_KINDS.length];
+    const userIds = [...session.users.keys()];
+    let kind = ROUND_KINDS[(n - 1) % ROUND_KINDS.length];
+    // Гардове: pictionary иска ≥2 играчи, impostor ≥3 — иначе обикновен draw
+    if (kind === 'pictionary' && userIds.length < 2) kind = 'draw';
+    if (kind === 'impostor' && userIds.length < 3) kind = 'draw';
+
+    const s = session.settings.roundSeconds;
+    const endsAt = Date.now() + s * 1000;
+    Object.assign(arena, {
+      round: n, phase: 'drawing', kind, endsAt, entries: {}, votes: {},
+      prompt: null, drawerId: null, secret: null, guessed: {}, guessOrder: [], guessers: 0, impostorId: null,
+    });
+
+    // ── Pictionary ──
+    if (kind === 'pictionary') {
+      arena.drawerIndex = (arena.drawerIndex + 1) % userIds.length;
+      const drawerId = userIds[arena.drawerIndex];
+      const word = pick(PICTIONARY_WORDS);
+      arena.drawerId = drawerId;
+      arena.secret = word;
+      arena.guessers = userIds.length - 1;
+      arena.prompt = { text: null };
+      io.to(mySessionCode).emit('ARENA_ROUND', {
+        round: n, totalRounds: arena.totalRounds, kind, endsAt, seconds: s,
+        drawerId, drawerNickname: session.users.get(drawerId)?.nickname || '?',
+        guessers: arena.guessers,
+      });
+      const drawerSock = session.users.get(drawerId)?.socketId;
+      if (drawerSock) io.to(drawerSock).emit('PICTIONARY_WORD', { word });
+      arena.drawTimer = setTimeout(() => {
+        if (session.arena !== arena) return;
+        finishPictionary();
+      }, s * 1000);
+      return;
+    }
+
+    // ── Impostor / Fake Artist ──
+    if (kind === 'impostor') {
+      const impostorId = userIds[Math.floor(Math.random() * userIds.length)];
+      const word = pick(IMPOSTOR_WORDS);
+      arena.impostorId = impostorId;
+      arena.prompt = { text: word };
+      io.to(mySessionCode).emit('ARENA_ROUND', {
+        round: n, totalRounds: arena.totalRounds, kind, endsAt, seconds: s, prompt: { text: null },
+      });
+      for (const [uid, u] of session.users) {
+        if (u.socketId) io.to(u.socketId).emit('ARENA_PROMPT', {
+          text: uid === impostorId ? null : word,
+          impostor: uid === impostorId,
+        });
+      }
+      arena.drawTimer = setTimeout(() => {
+        if (session.arena !== arena) return;
+        arena.phase = 'collect';
+        io.to(mySessionCode).emit('ARENA_COLLECT');
+        arena.collectTimer = setTimeout(() => finishArenaCollect(), 8000);
+      }, s * 1000);
+      return;
+    }
+
+    // ── draw / memory / blind ──
     let prompt;
     if (kind === 'memory') {
       const m = MEMORY_PROMPTS[Math.floor(Math.random() * MEMORY_PROMPTS.length)];
@@ -442,23 +592,9 @@ io.on('connection', (socket) => {
     } else {
       prompt = { text: DRAW_PROMPTS[Math.floor(Math.random() * DRAW_PROMPTS.length)] };
     }
-    const s = session.settings.roundSeconds;
-    Object.assign(arena, {
-      round: n,
-      phase: 'drawing',
-      kind,
-      prompt,
-      endsAt: Date.now() + s * 1000,
-      entries: {},
-      votes: {},
-    });
+    arena.prompt = prompt;
     io.to(mySessionCode).emit('ARENA_ROUND', {
-      round: n,
-      totalRounds: arena.totalRounds,
-      kind,
-      prompt,
-      endsAt: arena.endsAt,
-      seconds: s,
+      round: n, totalRounds: arena.totalRounds, kind, prompt, endsAt, seconds: s,
     });
     arena.drawTimer = setTimeout(() => {
       if (session.arena !== arena) return;
@@ -475,6 +611,7 @@ io.on('connection', (socket) => {
     session.arena = {
       totalRounds: session.settings.rounds,
       round: 0,
+      drawerIndex: -1,
       scores: {},
       names: {},
       entries: {},

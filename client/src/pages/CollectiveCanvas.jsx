@@ -26,6 +26,16 @@ function hslToRgb(h, s, l) {
   return { r: Math.round(f(0) * 255), g: Math.round(f(8) * 255), b: Math.round(f(4) * 255) };
 }
 
+// Приема `rgb(r,g,b)` или `#rrggbb` → връща `#rrggbb` (за <input type=color>).
+function cssToHex(c) {
+  if (!c) return '#ffffff';
+  if (c[0] === '#') return c;
+  const m = c.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!m) return '#ffffff';
+  const h = (n) => Number(n).toString(16).padStart(2, '0');
+  return `#${h(m[1])}${h(m[2])}${h(m[3])}`;
+}
+
 // ── Lobby: избор на режим на игра + nickname + create/join ──
 const GAME_MODES = [
   {
@@ -219,26 +229,42 @@ function Session({ socket, navigate }) {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Споделено рисуване
+  // Споделено рисуване (Solo-подобни инструменти)
   const [drawMode, setDrawMode] = useState(false);
-  const [erase, setErase] = useState(false);
-  const [brushSize, setBrushSize] = useState(6);
+  const [tool, setTool] = useState('brush'); // brush | line | rect | circle | eraser
+  const [color, setColor] = useState(null); // null → default = твоя цвят
+  const [size, setSize] = useState(6);
+  const [opacity, setOpacity] = useState(100);
   const sharedCanvasRef = useRef(null);
 
   const baseColor = sessionInfo?.yourColor
     ? hslToRgb(sessionInfo.yourColor.h, sessionInfo.yourColor.s, sessionInfo.yourColor.l)
     : { r: 150, g: 100, b: 255 };
   const colorCss = `rgb(${baseColor.r},${baseColor.g},${baseColor.b})`;
+  const drawColor = color || colorCss;
 
   // Режим на сесията: 'canvas' (споделено платно + камери) или 'arena' (игри)
   const isArena = sessionInfo?.mode === 'arena';
-  // "Личен слой" фаза: battle (в canvas режим) или arena рунд
-  const arenaDrawPhase =
-    isArena && ['drawing', 'collect'].includes(socket.arena?.phase) ? socket.arena.phase : null;
-  const battlePhase = socket.battle?.phase || arenaDrawPhase;
-  const isBlindRound = isArena && socket.arena?.kind === 'blind' && !!arenaDrawPhase;
-  // По време на battle/arena рунд рисуването е винаги активно (свой слой)
-  const effectiveDrawMode = battlePhase === 'drawing' ? true : !isArena && drawMode;
+  const arena = socket.arena;
+  const myId = sessionInfo?.yourId;
+
+  // Pictionary: споделено live рисуване (само рисуващият); всичко друго с рунд
+  // ползва скрит личен слой.
+  const pictionaryActive = isArena && arena?.kind === 'pictionary' && arena?.phase === 'drawing';
+  const isDrawer = pictionaryActive && arena?.drawerId === myId;
+  const arenaPersonalPhase =
+    isArena && !pictionaryActive && ['drawing', 'collect'].includes(arena?.phase) ? arena.phase : null;
+  const battlePhase = socket.battle?.phase || arenaPersonalPhase;
+  const isBlindRound = isArena && arena?.kind === 'blind' && !!arenaPersonalPhase;
+
+  let effectiveDrawMode;
+  if (pictionaryActive) effectiveDrawMode = isDrawer;
+  else if (battlePhase === 'drawing') effectiveDrawMode = true;
+  else if (isArena) effectiveDrawMode = false;
+  else effectiveDrawMode = drawMode;
+
+  const forcedDraw = pictionaryActive ? isDrawer : battlePhase === 'drawing';
+  const showToolbar = !isArena || effectiveDrawMode;
 
   // Микрофон при влизане
   useEffect(() => {
@@ -357,11 +383,13 @@ function Session({ socket, navigate }) {
       <SharedCanvas
         socket={socket}
         drawMode={effectiveDrawMode}
-        erase={erase}
-        brushSize={brushSize}
-        colorCss={colorCss}
+        tool={tool}
+        color={drawColor}
+        size={size}
+        opacity={opacity / 100}
         battlePhase={battlePhase}
         blind={isBlindRound}
+        pictionary={{ active: pictionaryActive, isDrawer }}
         onCanvasReady={(el) => (sharedCanvasRef.current = el)}
       />
 
@@ -426,57 +454,76 @@ function Session({ socket, navigate }) {
         />
       )}
 
-      {/* ── Draw toolbar (ляво долу; в arena рисуваш само в рунд) ── */}
-      <div className={`absolute left-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-ink-soft/80 border border-ink-line backdrop-blur px-2 py-1.5 ${isArena && !arenaDrawPhase ? 'hidden' : ''}`}>
-        <button
-          onClick={() => setDrawMode((d) => !d)}
-          title="Draw on the shared canvas"
-          className={`w-9 h-9 rounded-full text-base transition flex items-center justify-center ${
-            effectiveDrawMode ? 'bg-accent-violet/30 border border-accent-violet' : 'hover:bg-ink-line/60'
-          }`}
-        >
-          🖌
-        </button>
-        {effectiveDrawMode && (
-          <>
+      {/* ── Draw toolbar (Solo-подобни инструменти; долу-ляво) ── */}
+      {showToolbar && (
+        <div className="absolute left-4 bottom-4 z-30 flex items-center gap-1.5 rounded-2xl bg-ink-soft/85 border border-ink-line backdrop-blur px-2 py-1.5 flex-wrap max-w-[92vw]">
+          {!forcedDraw && (
             <button
-              onClick={() => setErase((e) => !e)}
-              title="Eraser"
-              className={`w-9 h-9 rounded-full text-base transition flex items-center justify-center ${
-                erase ? 'bg-red-950/70 border border-red-700' : 'hover:bg-ink-line/60'
+              onClick={() => setDrawMode((d) => !d)}
+              title="Draw on the shared canvas"
+              className={`w-9 h-9 rounded-lg text-base transition flex items-center justify-center ${
+                drawMode ? 'bg-accent-violet/30 border border-accent-violet' : 'hover:bg-ink-line/60'
               }`}
             >
-              ⌫
+              🖌
             </button>
-            <input
-              type="range"
-              min={2}
-              max={40}
-              value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-              title="Brush size"
-              className="w-24 accent-accent-violet"
-            />
-            <span
-              className="rounded-full border border-white/30 shrink-0"
-              style={{ width: 14, height: 14, background: colorCss }}
-              title="Your color"
-            />
-          </>
-        )}
-        {sessionInfo?.isCreator && !battlePhase && (
-          <button
-            onClick={() => window.confirm('Clear the shared canvas for everyone?') && socket.clearCanvas()}
-            title="Clear shared canvas (host)"
-            className="w-9 h-9 rounded-full text-sm text-gray-400 hover:text-red-400 hover:bg-ink-line/60 transition"
-          >
-            🗑
-          </button>
-        )}
-      </div>
+          )}
+          {effectiveDrawMode && (
+            <>
+              {[['brush', '🖌'], ['line', '╱'], ['rect', '▭'], ['circle', '◯'], ['eraser', '⌫']].map(([id, ic]) => (
+                <button
+                  key={id}
+                  onClick={() => setTool(id)}
+                  title={id}
+                  className={`w-9 h-9 rounded-lg text-base transition flex items-center justify-center ${
+                    tool === id
+                      ? id === 'eraser'
+                        ? 'bg-red-950/70 border border-red-700'
+                        : 'bg-accent-violet/30 border border-accent-violet'
+                      : 'hover:bg-ink-line/60 border border-transparent'
+                  }`}
+                >
+                  {ic}
+                </button>
+              ))}
+              <input
+                type="color"
+                value={cssToHex(drawColor)}
+                onChange={(e) => setColor(e.target.value)}
+                disabled={tool === 'eraser'}
+                title="Color"
+                className={`w-9 h-9 ${tool === 'eraser' ? 'opacity-30 pointer-events-none' : ''}`}
+              />
+              <label className="flex flex-col items-center" title={`Size ${size}`}>
+                <input type="range" min={2} max={48} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-20 accent-accent-violet" />
+                <span className="text-[8px] text-gray-500 leading-none">{size}px</span>
+              </label>
+              <label className="flex flex-col items-center" title={`Opacity ${opacity}%`}>
+                <input type="range" min={10} max={100} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="w-16 accent-accent-cyan" />
+                <span className="text-[8px] text-gray-500 leading-none">{opacity}%</span>
+              </label>
+            </>
+          )}
+          {sessionInfo?.isCreator && !battlePhase && !pictionaryActive && (
+            <button
+              onClick={() => window.confirm('Clear the shared canvas for everyone?') && socket.clearCanvas()}
+              title="Clear shared canvas (host)"
+              className="w-9 h-9 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-ink-line/60 transition"
+            >
+              🗑
+            </button>
+          )}
+        </div>
+      )}
 
       <ReactionsBar socket={socket} />
-      <ChatPanel messages={socket.chatMessages} onSend={socket.sendChat} myId={sessionInfo?.yourId} />
+      <ChatPanel
+        messages={socket.chatMessages}
+        onSend={socket.sendChat}
+        myId={myId}
+        forceOpen={pictionaryActive}
+        placeholder={pictionaryActive && !isDrawer ? 'Type your guess…' : 'Message…'}
+      />
 
       <ParticipantsList
         users={users}

@@ -144,6 +144,21 @@ export function useSocket() {
       setArena((a) => ({ ...(a || {}), phase: 'podium', standings }))
     );
 
+    // ── Pictionary ──
+    socket.on('PICTIONARY_WORD', ({ word }) =>
+      setArena((a) => (a ? { ...a, myWord: word } : a))
+    );
+    socket.on('PICTIONARY_STROKE', (op) => emitLocal('PICTIONARY_STROKE', op));
+    socket.on('PICTIONARY_GUESSED', ({ userId, count }) =>
+      setArena((a) => (a ? { ...a, guessedCount: count, lastGuesser: userId } : a))
+    );
+    socket.on('PICTIONARY_END', () => emitLocal('PICTIONARY_END'));
+
+    // ── Impostor: личен prompt (маскиран за фалшивия) ──
+    socket.on('ARENA_PROMPT', ({ text, impostor }) =>
+      setArena((a) => (a ? { ...a, myPrompt: text, impostor: !!impostor } : a))
+    );
+
     // ── Живи камери ──
     socket.on('CAM_FRAME', ({ userId, jpg }) =>
       setCamFrames((prev) => ({ ...prev, [userId]: jpg }))
@@ -179,6 +194,11 @@ export function useSocket() {
   const sendStroke = useCallback((stroke) => {
     strokesRef.current.push(stroke);
     socketRef.current?.emit('STROKE', stroke);
+  }, []);
+
+  // Emit без локално записване в strokesRef (Pictionary — временен слой)
+  const emitStroke = useCallback((op) => {
+    socketRef.current?.emit('STROKE', op);
   }, []);
 
   const clearCanvas = useCallback(() => {
@@ -262,6 +282,7 @@ export function useSocket() {
     sendStateUpdate,
     sendParticleSnapshot,
     sendStroke,
+    emitStroke,
     clearCanvas,
     sendChat,
     sendReaction,
