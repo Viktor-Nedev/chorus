@@ -235,6 +235,10 @@ function Session({ socket, navigate }) {
   const [color, setColor] = useState(null); // null → default = твоя цвят
   const [size, setSize] = useState(6);
   const [opacity, setOpacity] = useState(100);
+  // Рисуване с ръка / глас / емоция (като Solo)
+  const [handDraw, setHandDraw] = useState(false);
+  const [voicePaint, setVoicePaint] = useState(false);
+  const [emotionColorOn, setEmotionColorOn] = useState(false);
   const sharedCanvasRef = useRef(null);
 
   const baseColor = sessionInfo?.yourColor
@@ -390,6 +394,15 @@ function Session({ socket, navigate }) {
         battlePhase={battlePhase}
         blind={isBlindRound}
         pictionary={{ active: pictionaryActive, isDrawer }}
+        drivers={{
+          handRef: handPositionRef,
+          gestureRef,
+          emotionRef,
+          getAudioData,
+          handDraw,
+          voicePaint,
+          emotionColor: emotionColorOn,
+        }}
         onCanvasReady={(el) => (sharedCanvasRef.current = el)}
       />
 
@@ -502,6 +515,23 @@ function Session({ socket, navigate }) {
                 <input type="range" min={10} max={100} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="w-16 accent-accent-cyan" />
                 <span className="text-[8px] text-gray-500 leading-none">{opacity}%</span>
               </label>
+              <span className="w-px h-6 bg-ink-line mx-0.5" />
+              {[
+                ['hand', '✋', handDraw, () => setHandDraw((v) => !v), 'Draw with your hand (close your hand to draw)'],
+                ['voice', '🗣', voicePaint, () => setVoicePaint((v) => !v), 'Paint with your voice (speak/hum)'],
+                ['emo', '🎭', emotionColorOn, () => setEmotionColorOn((v) => !v), 'Colour follows your emotion'],
+              ].map(([id, ic, on, onClick, title]) => (
+                <button
+                  key={id}
+                  onClick={onClick}
+                  title={title}
+                  className={`w-9 h-9 rounded-lg text-base transition flex items-center justify-center ${
+                    on ? 'bg-accent-cyan/25 border border-accent-cyan text-accent-cyan' : 'hover:bg-ink-line/60 border border-transparent'
+                  }`}
+                >
+                  {ic}
+                </button>
+              ))}
             </>
           )}
           {sessionInfo?.isCreator && !battlePhase && !pictionaryActive && (

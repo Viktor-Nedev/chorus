@@ -15,7 +15,7 @@ const { router: videosRouter, serveVideo } = require('./routes/videos');
 const { verifyToken } = require('./middleware/auth');
 const { judgeRound } = require('./services/arenaJudge');
 const {
-  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick,
+  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan,
   isCorrectGuess, normalizeGuess, pictionaryScore, pictionaryDrawerScore, impostorScores,
 } = require('./services/arenaGames');
 
@@ -525,8 +525,9 @@ io.on('connection', (socket) => {
     if (!session) return;
     const arena = session.arena;
     const userIds = [...session.users.keys()];
-    let kind = ROUND_KINDS[(n - 1) % ROUND_KINDS.length];
-    // Гардове: pictionary иска ≥2 играчи, impostor ≥3 — иначе обикновен draw
+    // Ползвай предварително построения план (сигнатурните игри първи); ако
+    // играчите паднат под праг между рундовете → безопасен fallback към draw.
+    let kind = arena.plan?.[n - 1] || ROUND_KINDS[(n - 1) % ROUND_KINDS.length];
     if (kind === 'pictionary' && userIds.length < 2) kind = 'draw';
     if (kind === 'impostor' && userIds.length < 3) kind = 'draw';
 
@@ -612,6 +613,7 @@ io.on('connection', (socket) => {
       totalRounds: session.settings.rounds,
       round: 0,
       drawerIndex: -1,
+      plan: buildRoundPlan(session.settings.rounds, session.users.size),
       scores: {},
       names: {},
       entries: {},

@@ -15,6 +15,29 @@ const IMPOSTOR_WORDS = [
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Строи списък от игрови видове за рундовете. Сигнатурните игри (pictionary,
+// impostor) вървят ПЪРВИ — за да се видят рано дори при 3 рунда — после се
+// редят пълнителите. Guard-ове: impostor иска ≥3 играчи, pictionary ≥2.
+function buildRoundPlan(totalRounds, playerCount) {
+  const eligible = (k) =>
+    (k !== 'impostor' || playerCount >= 3) && (k !== 'pictionary' || playerCount >= 2);
+  const signature = ['pictionary', 'impostor'].filter(eligible);
+  const fillers = ['draw', 'memory', 'blind'];
+  const ordered = [...shuffle(signature), ...shuffle(fillers)];
+  const plan = [];
+  for (let i = 0; i < Math.max(1, totalRounds); i++) plan.push(ordered[i % ordered.length]);
+  return plan;
+}
+
 function normalizeGuess(text) {
   return String(text || '')
     .toLowerCase()
@@ -74,6 +97,6 @@ function impostorScores(votes, impostorId, players) {
 }
 
 module.exports = {
-  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick,
+  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan,
   normalizeGuess, isCorrectGuess, pictionaryScore, pictionaryDrawerScore, impostorScores,
 };
