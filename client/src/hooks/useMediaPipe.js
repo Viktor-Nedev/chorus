@@ -32,6 +32,10 @@ export function useMediaPipe(videoRef, enabled = true) {
   // Сурови hand landmarks (21 × xyz) за particle ръце / рисуване с пръст
   const handLandmarksBufRef = useRef(new Float32Array(21 * 3));
   const handStampRef = useRef(0);
+  // До 2 ръце (2 × 21 × xyz) за camera FX lens; handLandmarksBufRef остава =
+  // първата ръка за обратна съвместимост.
+  const handsBufRef = useRef(new Float32Array(2 * 21 * 3));
+  const handCountRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -62,7 +66,7 @@ export function useMediaPipe(videoRef, enabled = true) {
               delegate: 'GPU',
             },
             runningMode: 'VIDEO',
-            numHands: 1,
+            numHands: 2,
           }),
         ]);
 
@@ -141,11 +145,27 @@ export function useMediaPipe(videoRef, enabled = true) {
           }
         }
 
-        // Hand detection
+        // Hand detection (до 2 ръце)
         const handResult = handLandmarkerRef.current.detectForVideo(video, timestamp);
-        if (handResult.landmarks?.length > 0) {
-          const landmarks = handResult.landmarks[0];
-          // Копирай суровите 21 точки (за particle ръце / finger draw)
+        const hands = handResult.landmarks || [];
+        if (hands.length > 0) {
+          // До 2 ръце в handsBufRef (за camera FX lens)
+          const hb = handsBufRef.current;
+          const count = Math.min(2, hands.length);
+          for (let h = 0; h < count; h++) {
+            const base = h * 21 * 3;
+            const lms = hands[h];
+            for (let i = 0; i < 21; i++) {
+              const p = lms[i];
+              hb[base + i * 3] = p.x;
+              hb[base + i * 3 + 1] = p.y;
+              hb[base + i * 3 + 2] = p.z;
+            }
+          }
+          handCountRef.current = count;
+
+          // Първата ръка → handLandmarksBufRef + gesture/position (обратна съвместимост)
+          const landmarks = hands[0];
           const hbuf = handLandmarksBufRef.current;
           for (let i = 0; i < 21; i++) {
             const p = landmarks[i];
@@ -163,9 +183,12 @@ export function useMediaPipe(videoRef, enabled = true) {
             setGesture(detectedGesture);
           }
           setHandPosition(pos);
-        } else if (gestureRef.current !== 'NO_HAND') {
-          gestureRef.current = 'NO_HAND';
-          setGesture('NO_HAND');
+        } else {
+          handCountRef.current = 0;
+          if (gestureRef.current !== 'NO_HAND') {
+            gestureRef.current = 'NO_HAND';
+            setGesture('NO_HAND');
+          }
         }
       } catch (err) {
         // detectForVideo може да хвърли при race на timestamps — игнорирай кадъра
@@ -186,6 +209,8 @@ export function useMediaPipe(videoRef, enabled = true) {
     blendshapesRef,
     handLandmarksBufRef,
     handStampRef,
+    handsBufRef,
+    handCountRef,
     detect,
     ready,
     error,

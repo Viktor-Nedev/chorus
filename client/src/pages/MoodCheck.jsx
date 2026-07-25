@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { MoodParticleScene } from '../components/moodcheck/MoodParticleScene';
+import { CameraFX } from '../components/moodcheck/CameraFX';
+import { EFFECTS } from '../components/moodcheck/cameraFxUtils';
 import { VideoProcessor } from '../components/VideoProcessor';
 import { SaveModal } from '../components/SaveModal';
 import { CustomAvatarModal } from '../components/moodcheck/CustomAvatarModal';
@@ -50,11 +52,23 @@ export function MoodCheck({ navigate }) {
 
   const {
     emotion, emotionRef, landmarksBufRef, landmarkStampRef, blendshapesRef,
-    handLandmarksBufRef, handStampRef, detect, ready, error,
+    handLandmarksBufRef, handStampRef, handsBufRef, handCountRef, detect, ready, error,
   } = useMediaPipe(videoRef, true);
   const { saveArtwork, uploadVideo, saving } = useArtworkStore();
   const { authFetch } = useAuth();
-  const recorder = useRecorder(() => canvasElRef.current);
+
+  // Camera FX (thermal lens / point cloud / …)
+  const [fxEffect, setFxEffect] = useState(null); // null = изкл. (аватарът)
+  const [fxMode, setFxMode] = useState('lens'); // 'lens' | 'fullscreen'
+  const fxCanvasRef = useRef(null);
+  const fxEffectRef = useRef(null);
+  fxEffectRef.current = fxEffect;
+  // При активен FX записът/снимката хващат FX canvas-а, иначе аватар сцената
+  const takeSnapshot = useCallback(
+    () => (fxEffectRef.current ? fxCanvasRef.current?.toDataURL('image/png') : snapshotFnRef.current?.()),
+    []
+  );
+  const recorder = useRecorder(() => (fxEffectRef.current ? fxCanvasRef.current : canvasElRef.current));
 
   // Emotion history — 1/сек (mood journal)
   const [emotionHistory, setEmotionHistory] = useState([]);
@@ -147,7 +161,7 @@ export function MoodCheck({ navigate }) {
 
   // ── Save изображение / видео ──
   const handleSaveImage = async ({ title, author, description }) => {
-    const snapshot = snapshotFnRef.current?.();
+    const snapshot = takeSnapshot();
     if (!snapshot) { showToast('Snapshot failed'); setShowSaveModal(false); return; }
     try {
       await saveArtwork({ title, author, description, imageData: snapshot, emotionHistory, duration: Math.floor((Date.now() - startTimeRef.current) / 1000), mode: 'moodcheck' });
@@ -160,7 +174,7 @@ export function MoodCheck({ navigate }) {
     setSavingVideo(true);
     try {
       const { url } = await uploadVideo(recorder.result.blob);
-      await saveArtwork({ title: `Avatar clip — ${new Date().toLocaleDateString()}`, imageData: snapshotFnRef.current?.() || undefined, videoUrl: url, emotionHistory, duration: Math.round(recorder.elapsed || 0), mode: 'moodcheck' });
+      await saveArtwork({ title: `Avatar clip — ${new Date().toLocaleDateString()}`, imageData: takeSnapshot() || undefined, videoUrl: url, emotionHistory, duration: Math.round(recorder.elapsed || 0), mode: 'moodcheck' });
       recorder.clearResult(); showToast('✓ Clip saved to your archive');
     } catch (e) { showToast('Video save failed — ' + e.message); } finally { setSavingVideo(false); }
   };
@@ -202,6 +216,17 @@ export function MoodCheck({ navigate }) {
         />
       </div>
 
+      {fxEffect && (
+        <CameraFX
+          videoRef={videoRef}
+          handsBufRef={handsBufRef}
+          handCountRef={handCountRef}
+          effect={fxEffect}
+          mode={fxMode}
+          onCanvasReady={(el) => (fxCanvasRef.current = el)}
+        />
+      )}
+
       <VideoProcessor ref={videoRef} detect={detect} active={true} />
 
       {presenting ? (
@@ -237,9 +262,34 @@ export function MoodCheck({ navigate }) {
 
               {/* Effects */}
               <div className="relative">
-                <button onClick={() => { setShowEffects((s) => !s); setShowAvatars(false); }} className={`rounded-lg border px-2.5 h-8 text-xs transition ${talkKind !== 'off' || showHands || drawOn ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`} title="Effects">⚙ <span className="hidden md:inline">Effects</span></button>
+                <button onClick={() => { setShowEffects((s) => !s); setShowAvatars(false); }} className={`rounded-lg border px-2.5 h-8 text-xs transition ${talkKind !== 'off' || showHands || drawOn || fxEffect ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`} title="Effects">⚙ <span className="hidden md:inline">Effects</span></button>
                 {showEffects && (
-                  <div className="absolute right-0 top-10 z-30 w-56 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2.5 animate-fade-in space-y-2.5">
+                  <div className="absolute right-0 top-10 z-30 w-60 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2.5 animate-fade-in space-y-2.5 max-h-[80vh] overflow-y-auto">
+                    {/* ── Camera FX (thermal lens / point cloud …) ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] uppercase tracking-[0.2em] text-gray-600">Camera FX</span>
+                        {fxEffect && (
+                          <div className="flex gap-1">
+                            {['lens', 'fullscreen'].map((m) => (
+                              <button key={m} onClick={() => setFxMode(m)} className={`rounded px-1.5 py-0.5 text-[9px] border transition ${fxMode === m ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-500'}`}>{m === 'lens' ? '⬚ Lens' : '⛶ Full'}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        <button onClick={() => setFxEffect(null)} className={`rounded py-1 text-[10px] border transition ${!fxEffect ? 'bg-accent-violet/25 border-accent-violet text-white' : 'border-ink-line text-gray-400 hover:text-white'}`}>Off</button>
+                        {EFFECTS.map((e) => (
+                          <button key={e.id} onClick={() => setFxEffect(e.id)} title={e.label} className={`rounded py-1 text-[10px] border transition ${fxEffect === e.id ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-400 hover:text-white'}`}>{e.icon} {e.label}</button>
+                        ))}
+                      </div>
+                      {fxEffect && fxMode === 'lens' && (
+                        <p className="mt-1 text-[9px] text-gray-600">Frame the effect with your fingers ✋</p>
+                      )}
+                    </div>
+
+                    <div className="border-t border-ink-line" />
+
                     <div>
                       <div className="text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1">When you talk</div>
                       <div className="grid grid-cols-3 gap-1">
