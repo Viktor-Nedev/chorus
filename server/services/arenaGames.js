@@ -38,6 +38,20 @@ function buildRoundPlan(totalRounds, playerCount) {
   return plan;
 }
 
+const GAME_CHOICES = ['mixed', 'draw', 'pictionary', 'memory', 'impostor', 'blind'];
+
+// План според избора на host-а. 'mixed' → разнообразие; конкретна игра → всички
+// рундове са тя, с fallback към 'draw' ако играчите не стигат (impostor≥3, pictionary≥2).
+function planFromGame(game, totalRounds, playerCount) {
+  const rounds = Math.max(1, totalRounds);
+  if (!game || game === 'mixed' || !GAME_CHOICES.includes(game)) {
+    return buildRoundPlan(rounds, playerCount);
+  }
+  const ok = (game !== 'impostor' || playerCount >= 3) && (game !== 'pictionary' || playerCount >= 2);
+  const kind = ok ? game : 'draw';
+  return Array.from({ length: rounds }, () => kind);
+}
+
 function normalizeGuess(text) {
   return String(text || '')
     .toLowerCase()
@@ -97,6 +111,6 @@ function impostorScores(votes, impostorId, players) {
 }
 
 module.exports = {
-  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan,
+  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan, planFromGame, GAME_CHOICES,
   normalizeGuess, isCorrectGuess, pictionaryScore, pictionaryDrawerScore, impostorScores,
 };

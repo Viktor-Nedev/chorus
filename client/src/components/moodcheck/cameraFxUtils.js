@@ -4,11 +4,25 @@
 export const EFFECTS = [
   { id: 'thermal', label: 'Thermal', icon: '🌡' },
   { id: 'pointcloud', label: 'Point cloud', icon: '✦' },
+  { id: 'voxel', label: 'Voxel', icon: '⬛' },
   { id: 'hologram', label: 'Hologram', icon: '🛰' },
   { id: 'edge', label: 'Wireframe', icon: '▦' },
+  { id: 'neon', label: 'Neon', icon: '💠' },
   { id: 'rainbow', label: 'Spectral', icon: '🌈' },
+  { id: 'nightvision', label: 'Night-vis', icon: '🥽' },
   { id: 'xray', label: 'X-ray', icon: '☢' },
+  { id: 'sepia', label: 'Sepia', icon: '🎞' },
+  { id: 'invert', label: 'Negative', icon: '🔻' },
+  { id: 'posterize', label: 'Posterize', icon: '🖼' },
+  { id: 'duotone', label: 'Duotone', icon: '🌗' },
+  { id: 'contour', label: 'Contour', icon: '🗺' },
+  { id: 'mosaic', label: 'Mosaic', icon: '▩' },
+  { id: 'halftone', label: 'Halftone', icon: '⣿' },
+  { id: 'glitch', label: 'Glitch', icon: '📺' },
 ];
+
+// Ефекти, които се рисуват СПЕЦИАЛНО в CameraFX (не per-pixel LUT):
+export const SPECIAL_EFFECTS = new Set(['pointcloud', 'voxel', 'mosaic', 'halftone', 'glitch']);
 
 // Rec.709 luminance, 0..1
 export function luminance(r, g, b) {
@@ -68,6 +82,29 @@ export function pointCloudColor(l) {
   const b = Math.round(90 + l * 120);
   const r = Math.round(20 + l * 120);
   return [r, g, b];
+}
+
+// ── Прости per-pixel цветови трансформации (чисти, тествани) ──
+export function nightvisionColor(l) {
+  return [Math.round(l * 40), Math.round(30 + l * 225), Math.round(l * 60)];
+}
+export function sepiaColor(r, g, b) {
+  const tr = 0.393 * r + 0.769 * g + 0.189 * b;
+  const tg = 0.349 * r + 0.686 * g + 0.168 * b;
+  const tb = 0.272 * r + 0.534 * g + 0.131 * b;
+  return [Math.min(255, tr) | 0, Math.min(255, tg) | 0, Math.min(255, tb) | 0];
+}
+export function invertColor(r, g, b) {
+  return [255 - r, 255 - g, 255 - b];
+}
+export function posterizeColor(r, g, b, levels = 5) {
+  const q = (v) => Math.round((Math.round((v / 255) * (levels - 1)) / (levels - 1)) * 255);
+  return [q(r), q(g), q(b)];
+}
+export function duotoneColor(l) {
+  const a = [20, 20, 60];
+  const c = [255, 120, 180];
+  return [Math.round(a[0] + (c[0] - a[0]) * l), Math.round(a[1] + (c[1] - a[1]) * l), Math.round(a[2] + (c[2] - a[2]) * l)];
 }
 
 const IDX_TIP = 8;

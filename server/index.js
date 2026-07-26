@@ -15,7 +15,7 @@ const { router: videosRouter, serveVideo } = require('./routes/videos');
 const { verifyToken } = require('./middleware/auth');
 const { judgeRound } = require('./services/arenaJudge');
 const {
-  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan,
+  PICTIONARY_WORDS, IMPOSTOR_WORDS, pick, buildRoundPlan, planFromGame, GAME_CHOICES,
   isCorrectGuess, normalizeGuess, pictionaryScore, pictionaryDrawerScore, impostorScores,
 } = require('./services/arenaGames');
 
@@ -117,10 +117,11 @@ io.on('connection', (socket) => {
     const roundSeconds = [30, 60, 90, 120].includes(Number(settings?.roundSeconds))
       ? Number(settings.roundSeconds)
       : 60;
+    const game = GAME_CHOICES.includes(settings?.game) ? settings.game : 'mixed';
 
     sessions.set(mySessionCode, {
       mode: sessionMode,
-      settings: { rounds, roundSeconds },
+      settings: { rounds, roundSeconds, game },
       arena: null,
       creatorId: myUserId,
       users: new Map([
@@ -158,7 +159,7 @@ io.on('connection', (socket) => {
       strokes: [],
       chat: [],
       mode: sessionMode,
-      settings: { rounds, roundSeconds },
+      settings: { rounds, roundSeconds, game },
     });
     console.log(`Session ${mySessionCode} (${sessionMode}) created by ${nickname}`);
   });
@@ -613,7 +614,7 @@ io.on('connection', (socket) => {
       totalRounds: session.settings.rounds,
       round: 0,
       drawerIndex: -1,
-      plan: buildRoundPlan(session.settings.rounds, session.users.size),
+      plan: planFromGame(session.settings.game, session.settings.rounds, session.users.size),
       scores: {},
       names: {},
       entries: {},

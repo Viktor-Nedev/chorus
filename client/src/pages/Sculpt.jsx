@@ -14,6 +14,8 @@ import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useRecorder } from '../hooks/useRecorder';
 import { EMOTION_HEX } from '../constants/emotions';
 import { MobileNotice } from '../components/MobileNotice';
+import { InstructionsBook } from '../components/solo/InstructionsBook';
+import { SCULPT_PAGES } from '../components/help/manuals';
 
 const TOOLS = [
   { id: 'select', icon: '⬚', label: 'Select / transform (G move · R rotate · S scale)' },
@@ -45,6 +47,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
 
   const [addOpen, setAddOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showBook, setShowBook] = useState(false);
   const [profileMode, setProfileMode] = useState(null); // 'lathe' | 'extrude'
   const [showSave, setShowSave] = useState(false);
   const [toast, setToast] = useState(null);
@@ -316,6 +319,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
           <button onClick={handleNew} className="rounded-lg border border-ink-line px-3 h-8 text-xs text-gray-400 hover:text-white hover:bg-ink-line/40 transition">
             + New
           </button>
+          <button onClick={() => setShowBook(true)} title="Field guide" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm">📖</button>
 
           {/* Export dropdown */}
           <div className="relative">
@@ -580,6 +584,8 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
           {toast}
         </div>
       )}
+
+      {showBook && <InstructionsBook pages={SCULPT_PAGES} onClose={() => setShowBook(false)} />}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import { analyzeCanvas, serializeObjects } from '../engine/sketchAnalyzer';
 import { buildWireframeHtml } from '../engine/wireframePreview';
 import { useWebforge } from '../hooks/useWebforge';
 import { MobileNotice } from '../components/MobileNotice';
+import { InstructionsBook } from '../components/solo/InstructionsBook';
+import { WEBFORGE_PAGES } from '../components/help/manuals';
 
 const TOOLS = [
   { id: 'SELECT', icon: '⬚', label: 'Select (V) — click/move/resize · Del removes' },
@@ -91,6 +93,7 @@ export function WebForge({ navigate }) {
   const [framePopover, setFramePopover] = useState(null); // {rect, x, y}
   const [toast, setToast] = useState(null);
   const [errorBanner, setErrorBanner] = useState(null); // {msg, retry}
+  const [showBook, setShowBook] = useState(false);
 
   const wf = useWebforge();
 
@@ -489,6 +492,13 @@ export function WebForge({ navigate }) {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowBook(true)}
+            title="Field guide"
+            className="w-8 h-8 rounded-lg border border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"
+          >
+            📖
+          </button>
           <select
             value={stylePreset}
             onChange={(e) => setStylePreset(e.target.value)}
@@ -784,6 +794,8 @@ export function WebForge({ navigate }) {
           {toast}
         </div>
       )}
+
+      {showBook && <InstructionsBook pages={WEBFORGE_PAGES} onClose={() => setShowBook(false)} />}
     </div>
   );
 }

@@ -9,7 +9,10 @@ import { DrawAvatarModal } from '../components/moodcheck/DrawAvatarModal';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useRecorder } from '../hooks/useRecorder';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useAuth } from '../hooks/useAuth';
+import { InstructionsBook } from '../components/solo/InstructionsBook';
+import { MIRROR_PAGES } from '../components/help/manuals';
 import { EMOTION_CONFIGS, EMOTION_HEX } from '../constants/emotions';
 import { AVATARS, AVATAR_MAP, DEFAULT_AVATAR, toRuntime, clampAvatar } from '../components/moodcheck/avatars';
 
@@ -18,6 +21,27 @@ const CHARACTERS = AVATARS.filter((a) => a.type === 'character');
 const TALK_KINDS = [
   { id: 'off', label: 'Off' }, { id: 'notes', label: '♪ Notes' }, { id: 'hearts', label: '❤ Hearts' },
   { id: 'stars', label: '⭐ Stars' }, { id: 'sparks', label: '✨ Sparks' },
+];
+
+// Гласови команди → effect id
+const VOICE_EFFECTS = [
+  [['thermal', 'heat'], 'thermal'],
+  [['point cloud', 'pointcloud', 'points'], 'pointcloud'],
+  [['voxel', 'blocks'], 'voxel'],
+  [['hologram', 'holo'], 'hologram'],
+  [['wireframe', 'edges', 'edge'], 'edge'],
+  [['neon'], 'neon'],
+  [['spectral', 'rainbow'], 'rainbow'],
+  [['night', 'nightvision', 'night vision'], 'nightvision'],
+  [['x-ray', 'xray', 'x ray'], 'xray'],
+  [['sepia'], 'sepia'],
+  [['negative', 'invert', 'inverted'], 'invert'],
+  [['posterize', 'poster'], 'posterize'],
+  [['duotone'], 'duotone'],
+  [['contour', 'topographic'], 'contour'],
+  [['mosaic', 'pixelate', 'pixel'], 'mosaic'],
+  [['halftone', 'dots'], 'halftone'],
+  [['glitch'], 'glitch'],
 ];
 
 export function MoodCheck({ navigate }) {
@@ -69,6 +93,10 @@ export function MoodCheck({ navigate }) {
     []
   );
   const recorder = useRecorder(() => (fxEffectRef.current ? fxCanvasRef.current : canvasElRef.current));
+
+  // Гласови команди + наръчник
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [showBook, setShowBook] = useState(false);
 
   // Emotion history — 1/сек (mood journal)
   const [emotionHistory, setEmotionHistory] = useState([]);
@@ -148,6 +176,40 @@ export function MoodCheck({ navigate }) {
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
+
+  // ── Гласова команда „photo" → снимка в галерията (тегли се от Gallery) ──
+  const takePhoto = useCallback(async () => {
+    const img = takeSnapshot();
+    if (!img) { showToast('Snapshot failed'); return; }
+    try {
+      await saveArtwork({
+        title: `Mirror photo — ${new Date().toLocaleDateString()}`,
+        imageData: img,
+        emotionHistory,
+        duration: Math.floor((Date.now() - startTimeRef.current) / 1000),
+        mode: 'moodcheck',
+      });
+      showToast('📸 Saved — download it from the Gallery');
+    } catch {
+      showToast('Save failed — is the server running?');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [takeSnapshot, saveArtwork, emotionHistory]);
+
+  const handleVoice = (raw) => {
+    const t = raw.toLowerCase();
+    if (/\b(take a photo|photo|snapshot|capture|снимка|снимай)\b/.test(t)) { takePhoto(); return; }
+    if (/\b(full ?screen|whole screen)\b/.test(t)) { setFxMode('fullscreen'); showToast('🎙 Fullscreen'); return; }
+    if (/\blens\b/.test(t)) { setFxMode('lens'); showToast('🎙 Lens'); return; }
+    if (/\b(effects? off|no effect|avatar|normal|off)\b/.test(t)) { setFxEffect(null); showToast('🎙 Effect off'); return; }
+    if (/\brecord\b/.test(t) && recorder.supported && !recorder.recording) { recorder.start({ withMic: micOn }); showToast('🎙 Recording'); return; }
+    if (/\bstop\b/.test(t) && recorder.recording) { recorder.stop(); return; }
+    for (const [words, id] of VOICE_EFFECTS) {
+      if (words.some((w) => t.includes(w))) { setFxEffect(id); showToast(`🎙 ${id}`); return; }
+    }
+  };
+
+  const { supported: voiceSupported } = useSpeechRecognition(voiceOn, handleVoice);
 
   // ── Mood journal ──
   const moodStats = useMemo(() => {
@@ -312,6 +374,18 @@ export function MoodCheck({ navigate }) {
               {/* Emotion color toggle */}
               <button onClick={() => setEmotionColor((v) => !v)} title="Color the avatar by your current emotion" className={`rounded-lg border px-2.5 h-8 text-xs transition ${emotionColor ? 'border-accent-violet/50 bg-accent-violet/15 text-white' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}>🎭</button>
 
+              {/* Voice commands */}
+              <button
+                onClick={() => { if (!voiceOn && !voiceSupported) { showToast('Voice needs Chrome/Edge'); return; } setVoiceOn((v) => !v); }}
+                title='Voice commands — say "take a photo", an effect name, "lens", "fullscreen", "off"'
+                className={`rounded-lg border px-2.5 h-8 text-xs transition ${voiceOn ? 'border-red-500 bg-red-950/40 text-red-300' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`}
+              >
+                {voiceOn ? '🗣 …' : '🗣'}
+              </button>
+
+              {/* Handbook */}
+              <button onClick={() => setShowBook(true)} title="Field guide" className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 h-8 text-xs text-gray-200 hover:border-accent-cyan transition">📖</button>
+
               {/* Mic */}
               <button onClick={() => setMicOn((m) => !m)} title="Include microphone in recordings" className={`rounded-lg border px-2.5 h-8 text-xs transition ${micOn ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}>{micOn ? '🎙' : '🔇'}</button>
 
@@ -354,8 +428,16 @@ export function MoodCheck({ navigate }) {
           </div>
 
           {error && <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-full bg-red-950/70 border border-red-800 px-5 py-2 text-sm text-red-200 backdrop-blur">{error}</div>}
+
+          {voiceOn && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-red-300 bg-ink-soft/70 border border-red-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in text-center max-w-[90vw]">
+              Say “take a photo”, an effect (“thermal”, “point cloud”, “glitch”…), “lens / fullscreen”, or “off”
+            </div>
+          )}
         </>
       )}
+
+      {showBook && <InstructionsBook pages={MIRROR_PAGES} title="Mirror Field Guide" onClose={() => setShowBook(false)} />}
 
       {/* ── Post-record ── */}
       {recorder.result && !presenting && (

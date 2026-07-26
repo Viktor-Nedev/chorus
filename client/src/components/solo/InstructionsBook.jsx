@@ -1,105 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { SOLO_PAGES } from '../help/manuals';
 
-// Solo Field Guide — a flippable booklet. Navigate with Prev/Next, arrow keys,
-// or the page dots; Esc closes. Each page re-mounts with key={page} so the CSS
-// flip animation replays.
+// Flippable booklet used as the in-mode handbook. Navigate with Prev/Next,
+// arrow keys, or the page dots; Esc closes. Each page re-mounts with key={page}
+// so the CSS flip animation replays. Pass `pages` (defaults to the Solo guide).
 
-const PAGES = [
-  {
-    kind: 'cover',
-    title: 'CHORUS',
-    subtitle: 'Solo Field Guide',
-    body: [
-      'Paint with your mouse, your hand, your voice, and your emotions.',
-      'Turn the pages with the arrows → or the buttons below.',
-    ],
-  },
-  {
-    n: '01',
-    title: 'Basics',
-    icon: '🎨',
-    items: [
-      ['👁 Camera + microphone', 'Turns on face, hand and sound input. Without it you can still draw with the mouse.'],
-      ['🖐 Hand tracking', 'Toggle whether your hand is followed.'],
-      ['↶ ↷ Undo / Redo', 'Or Ctrl+Z / Ctrl+Y.'],
-      ['Clear · Save · Export', 'Clear the canvas, save to your gallery (optionally with a poem), or download PNG / JPG / WEBP.'],
-      ['Zoom · Rotate · Size', 'Ctrl+scroll or 🔍 to zoom, ⟲⟳ to rotate, ⬚ to pick a centred artboard size.'],
-    ],
-  },
-  {
-    n: '02',
-    title: 'Brushes & tools',
-    icon: '🧰',
-    items: [
-      ['🎆 Chorus', 'A particle brush driven by your emotion and gestures. Leaves no stains.'],
-      ['🖐️ Hand Draw', 'Paint with your hand, in 7 pen styles.'],
-      ['✏️ Brush', 'A smooth freehand line with the mouse.'],
-      ['／ Lines', 'Straight, wavy, dashed, arrow, zigzag — pick from the flyout.'],
-      ['◇ Shapes', 'Circle, rectangle, triangle, star, hexagon, pentagon, diamond, heart, arrow.'],
-      ['🪣 Fill · ✍️ Text · 💧 Eyedropper · ⌫ Eraser', 'Flood fill to the outline, place/dictate text, pick a colour, erase.'],
-    ],
-  },
-  {
-    n: '03',
-    title: 'Hands & gestures',
-    icon: '✋',
-    items: [
-      ['1 · Turn on 👁', 'Hand Draw and Voice paint need the camera / microphone.'],
-      ['2 · Close your hand = draw', 'A closed hand lowers the pen.'],
-      ['3 · Open palm (✋) = pause', 'Or say “stop”. Close it again to resume.'],
-      ['⚡ Smooth', 'Smoothing toggle — removes hand tremble for a steadier line.'],
-      ['🪞 Mirror', 'Mirrors every stroke across the vertical centre; glows while on.'],
-    ],
-  },
-  {
-    n: '04',
-    title: 'Voice paint 🗣️',
-    icon: '🗣️',
-    items: [
-      ['Steer with hand or cursor', 'Move your hand (or the mouse) to aim; speak or hum to release paint.'],
-      ['Louder = thicker', 'Volume drives stroke weight and opacity; pitch shifts the colour.'],
-      ['🎨 Paint / ✦ Burst', 'Paint flows a line; Burst explodes particles on a loud sound.'],
-      ['🎨 Emotion colour (live)', 'Turn it on and the colour keeps following your mood — focused → green, happy → yellow — no need to press again.'],
-    ],
-  },
-  {
-    n: '05',
-    title: 'Select, paste & images',
-    icon: '⛶',
-    items: [
-      ['⛶ Select', 'Drag a box to lift a region — then move it or resize with the handles.'],
-      ['Cut / Copy / Delete', 'Ctrl+X cut · Ctrl+C copy · Del delete · Enter places it, Esc cancels.'],
-      ['🖼 Image', 'Import a picture from a file, or paste one with Ctrl+V.'],
-      ['Resize on canvas', 'Drag the corner handles, then ✓ Place to stamp it down.'],
-    ],
-  },
-  {
-    n: '06',
-    title: 'Voice commands 🎙',
-    icon: '🎙',
-    items: [
-      ['Colours', '“red”, “gold”, “teal”, “magenta”, “silver”…'],
-      ['Tools & shapes', '“brush”, “circle”, “heart”, “dashed”, “arrow”, “eraser”, “fill”.'],
-      ['Pens', '“pencil”, “marker”, “calligraphy”, “spray”, “neon”.'],
-      ['Text & emotion', '“text hello” places “hello” · “emotion colour” toggles the live mood colour.'],
-      ['More', '“bigger / smaller”, “stop / draw”, “clear”, “save”.'],
-    ],
-  },
-  {
-    n: '07',
-    title: 'Shortcuts & tips',
-    icon: '⌨️',
-    items: [
-      ['Ctrl + Z / Y', 'Undo / Redo.'],
-      ['Ctrl + scroll', 'Zoom around the centre. The 🔍 buttons work too.'],
-      ['⟲ ⟳', 'Rotate the canvas 90°; it stays centred.'],
-      ['Live State panel', 'Drag it anywhere by its title bar, or ⤢ to dock it back.'],
-      ['Leaving', 'If you have unsaved work, CHORUS asks to save before you leave.'],
-    ],
-  },
-];
-
-export function InstructionsBook({ onClose }) {
+export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
+  const PAGES = pages;
   const [page, setPage] = useState(0);
   const [dir, setDir] = useState('next');
   const last = PAGES.length - 1;

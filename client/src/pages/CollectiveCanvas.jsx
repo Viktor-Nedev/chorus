@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { P5Canvas } from '../components/P5Canvas';
 import { VideoProcessor } from '../components/VideoProcessor';
+import { InstructionsBook } from '../components/solo/InstructionsBook';
+import { COLLECTIVE_PAGES } from '../components/help/manuals';
 import { ParticipantsList } from '../components/HUD';
 import { PoemOverlay } from '../components/PoemOverlay';
 import { SaveModal } from '../components/SaveModal';
@@ -59,6 +60,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
   const [gameMode, setGameMode] = useState('canvas');
   const [rounds, setRounds] = useState(3);
   const [roundSeconds, setRoundSeconds] = useState(60);
+  const [game, setGame] = useState('mixed');
 
   const valid = nickname.trim().length > 0;
 
@@ -133,6 +135,32 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
           </div>
         )}
 
+        {/* Избор на игра (host) */}
+        {gameMode === 'arena' && (
+          <div className="mb-5 rounded-xl border border-ink-line bg-ink-soft/40 p-3 animate-fade-in">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-gray-500 block mb-1.5">Game</span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                ['mixed', '🎲 Mixed'], ['pictionary', '✏️ Pictionary'], ['impostor', '🎭 Impostor'],
+                ['draw', '🎨 Draw'], ['memory', '🧠 Memory'], ['blind', '🙈 Blind'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setGame(id)}
+                  className={`rounded-lg py-1.5 text-[11px] transition border ${
+                    game === id ? 'bg-cyan-950/60 border-cyan-600 text-cyan-300' : 'border-ink-line text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-gray-600">
+              {game === 'impostor' ? 'Impostor needs 3+ players.' : game === 'mixed' ? 'A varied mix of all games.' : `Every round is ${game}.`}
+            </p>
+          </div>
+        )}
+
         <label className="block mb-4">
           <span className="text-xs text-gray-400 mb-1 block">Nickname</span>
           <input
@@ -163,7 +191,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
 
         <div className="flex flex-col gap-3">
           <button
-            onClick={() => onCreate(nickname, gameMode, { rounds, roundSeconds })}
+            onClick={() => onCreate(nickname, gameMode, { rounds, roundSeconds, game })}
             disabled={!valid}
             className="w-full rounded-lg bg-cyan-600 py-2.5 text-sm text-white hover:bg-cyan-500 transition disabled:opacity-40"
           >
@@ -191,19 +219,16 @@ function Session({ socket, navigate }) {
   const {
     sessionInfo,
     users,
-    usersRef,
     sessionEnded,
     sendStateUpdate,
-    sendParticleSnapshot,
     endSession,
     disconnect,
   } = socket;
 
   const videoRef = useRef(null);
-  const systemRef = useRef(null);
-  const p5InstanceRef = useRef(null);
   const myAudioLevelRef = useRef(0);
   const nicknameRef = useRef(sessionInfo?.nickname);
+  const [showBook, setShowBook] = useState(false);
 
   const { emotion, gesture, emotionRef, gestureRef, handPositionRef, landmarksBufRef, landmarkStampRef, detect } = useMediaPipe(
     videoRef,
@@ -291,21 +316,6 @@ function Session({ socket, navigate }) {
     return () => clearInterval(interval);
   }, [getAudioData, sendStateUpdate, emotionRef, gestureRef, handPositionRef]);
 
-  // PARTICLE_SNAPSHOT на всеки 500ms
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (systemRef.current) {
-        sendParticleSnapshot(systemRef.current.getSnapshot());
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [sendParticleSnapshot]);
-
-  const onSystemReady = useCallback((system, p) => {
-    systemRef.current = system;
-    p5InstanceRef.current = p;
-  }, []);
-
   const copyCode = () => {
     navigator.clipboard?.writeText(sessionInfo.sessionCode);
     setCopied(true);
@@ -336,18 +346,15 @@ function Session({ socket, navigate }) {
   }, [sessionEnded, generatePoem]);
 
   const handleSaveCollective = async ({ title, author, description }) => {
-    const p = p5InstanceRef.current;
-    if (!p) return;
-    const canvas = p.canvas ?? p.drawingContext.canvas;
-    // Композирай p5 частиците + споделения слой с рисунките
+    const shared = sharedCanvasRef.current;
+    // Тъмен фон + споделеният слой с рисунките (без частици)
     const combined = document.createElement('canvas');
-    combined.width = canvas.width;
-    combined.height = canvas.height;
+    combined.width = shared?.width || 1280;
+    combined.height = shared?.height || 720;
     const cctx = combined.getContext('2d');
-    cctx.drawImage(canvas, 0, 0);
-    if (sharedCanvasRef.current) {
-      cctx.drawImage(sharedCanvasRef.current, 0, 0, combined.width, combined.height);
-    }
+    cctx.fillStyle = '#05060a';
+    cctx.fillRect(0, 0, combined.width, combined.height);
+    if (shared) cctx.drawImage(shared, 0, 0, combined.width, combined.height);
     try {
       await saveArtwork({
         title,
@@ -371,19 +378,10 @@ function Session({ socket, navigate }) {
   return (
     <div className="relative h-full w-full bg-ink overflow-hidden">
       <MobileNotice label="Collective is best on desktop — a bigger canvas for the shared session" />
-      <P5Canvas
-        mode="collective"
-        emotionRef={emotionRef}
-        gestureRef={gestureRef}
-        handPositionRef={handPositionRef}
-        getAudioData={getAudioData}
-        baseColor={baseColor}
-        usersRef={usersRef}
-        myAudioLevelRef={myAudioLevelRef}
-        onSystemReady={onSystemReady}
-      />
+      {/* Тъмно платно за рисуване (без частици) */}
+      <div className="absolute inset-0 bg-[#05060a]" />
 
-      {/* Споделен слой за рисуване (над частиците) */}
+      {/* Споделен слой за рисуване */}
       <SharedCanvas
         socket={socket}
         drawMode={effectiveDrawMode}
@@ -429,6 +427,13 @@ function Session({ socket, navigate }) {
         </button>
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowBook(true)}
+            title="Field guide"
+            className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 py-1.5 text-xs text-gray-200 hover:border-accent-cyan transition"
+          >
+            📖
+          </button>
           {!isArena && (
             <BattleOverlay
               socket={socket}
