@@ -17,7 +17,7 @@ function Countdown({ endsAt }) {
   return <span>{h > 0 ? `${h}h ${m}m` : `${m}m`} left</span>;
 }
 
-export function Compete({ navigate }) {
+export function Compete({ navigate, embedded = false }) {
   const { user, authFetch } = useAuth();
   const { fetchGallery } = useArtworkStore();
   const [comps, setComps] = useState([]);
@@ -80,27 +80,36 @@ export function Compete({ navigate }) {
   const past = comps.filter((c) => c.ended);
 
   return (
-    <div className="h-full w-full bg-ink overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 md:px-10 py-12">
-        <button
-          onClick={() => navigate('landing')}
-          className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
-        >
-          ← Back
-        </button>
-
-        <div className="mt-6 mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <h1
-            className="font-display font-extrabold text-white leading-none tracking-tight"
-            style={{ fontSize: 'clamp(2.6rem, 7vw, 5.5rem)' }}
+    <div className={embedded ? '' : 'h-full w-full bg-ink overflow-y-auto'}>
+      <div className={embedded ? '' : 'max-w-5xl mx-auto px-6 md:px-10 py-12'}>
+        {!embedded && (
+          <button
+            onClick={() => navigate('landing')}
+            className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
           >
-            COMPETE
-          </h1>
+            ← Back
+          </button>
+        )}
+
+        <div className={`${embedded ? 'mb-6' : 'mt-6 mb-10'} flex flex-col md:flex-row md:items-end justify-between gap-4`}>
+          {embedded ? (
+            <div>
+              <h2 className="font-display font-extrabold text-white text-2xl">Themed Challenges</h2>
+              <p className="text-xs text-gray-500 mt-1">Time-boxed contests on a theme — enter one artwork, one vote each.</p>
+            </div>
+          ) : (
+            <h1
+              className="font-display font-extrabold text-white leading-none tracking-tight"
+              style={{ fontSize: 'clamp(2.6rem, 7vw, 5.5rem)' }}
+            >
+              COMPETE
+            </h1>
+          )}
           <button
             onClick={() => setShowCreate(true)}
             className="rounded-lg bg-accent-violet/85 px-5 h-10 text-sm font-bold text-ink hover:bg-accent-violet transition self-start md:self-auto"
           >
-            + New competition
+            + New challenge
           </button>
         </div>
 

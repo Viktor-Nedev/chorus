@@ -326,11 +326,11 @@ export function Landing({ navigate }) {
       {/* ── Nav chips (горе дясно) ── */}
       <nav className="fixed top-4 right-4 z-30 flex items-center gap-2">
         <button
-          onClick={goto('compete')}
+          onClick={goto('social')}
           data-magnetic
           className="rounded-full border border-ink-line bg-ink-soft/70 backdrop-blur px-4 py-1.5 text-[11px] uppercase tracking-[0.2em] text-gray-300 hover:text-white hover:border-gray-500 transition"
         >
-          Compete
+          Social
         </button>
         <button
           onClick={goto('gallery')}
@@ -550,7 +550,7 @@ export function Landing({ navigate }) {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                     {[
                       ['Solo', 'solo'], ['Collective', 'collective'], ['Mood Check', 'moodcheck'],
-                      ['WebForge', 'webforge'], ['Sculpt', 'sculpt'], ['Compete', 'compete'],
+                      ['WebForge', 'webforge'], ['Sculpt', 'sculpt'], ['Social', 'social'],
                       ['Archive', 'gallery'], ['Profile', 'profile'],
                     ].map(([label, screen]) => (
                       <button

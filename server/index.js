@@ -12,6 +12,7 @@ const authRouter = require('./routes/auth');
 const { router: competitionsRouter } = require('./routes/competitions');
 const { router: usersRouter, recordBattleWin, recordArenaRounds } = require('./routes/users');
 const { router: videosRouter, serveVideo } = require('./routes/videos');
+const { router: socialRouter, finalizeDueSeasons } = require('./routes/social');
 const { verifyToken } = require('./middleware/auth');
 const { judgeRound } = require('./services/arenaJudge');
 const {
@@ -69,6 +70,9 @@ app.use('/api/webforge', webforgeRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/competitions', competitionsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/social', socialRouter);
+// Раздай баджове за приключили сезони при старт (и лениво при /awards/current)
+finalizeDueSeasons().catch((e) => console.error('Season finalize error:', e.message));
 // Static сервиране на записаните видеа
 app.get('/videos/:id.webm', (req, res) => serveVideo({ params: { id: req.params.id } }, res));
 // Static хостинг за генерирани WebForge проекти без backend

@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useAuth } from '../hooks/useAuth';
+import { PostComposer } from '../components/social/PostComposer';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
 export function Gallery({ navigate }) {
   const { fetchGallery, fetchArtwork, deleteArtwork, loading } = useArtworkStore();
+  const { user } = useAuth();
   const [artworks, setArtworks] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'solo' | 'collective'
   const [sort, setSort] = useState('newest'); // 'newest' | 'oldest'
   const [selected, setSelected] = useState(null); // пълният artwork с imageData
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [shareArt, setShareArt] = useState(null); // творба за публикуване в Social
+  const [shared, setShared] = useState(false);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
@@ -225,6 +230,14 @@ export function Gallery({ navigate }) {
                     {selected.mode === 'sculpt' ? 'Open in Sculpt' : 'Edit'}
                   </button>
                 )}
+                {user && (!selected.userId || selected.userId === user.id) && (
+                  <button
+                    onClick={() => setShareArt(selected)}
+                    className="rounded-lg border border-accent-violet/50 bg-accent-violet/10 px-4 py-2 text-sm text-accent-violet hover:bg-accent-violet/20 transition"
+                  >
+                    ↗ Share to Social
+                  </button>
+                )}
                 <button
                   onClick={() => setSelected(null)}
                   className="rounded-lg border border-ink-line px-4 py-2 text-sm text-gray-300 hover:bg-ink-line/50 transition"
@@ -234,6 +247,28 @@ export function Gallery({ navigate }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Share to Social ── */}
+      {shareArt && (
+        <PostComposer
+          me={user}
+          presetArtworkId={shareArt.id}
+          onClose={() => setShareArt(null)}
+          onPublished={() => {
+            setShareArt(null);
+            setSelected(null);
+            setShared(true);
+            setTimeout(() => setShared(false), 3500);
+          }}
+        />
+      )}
+
+      {shared && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] rounded-full bg-ink-soft border border-accent-violet/40 px-5 py-2 text-sm text-white backdrop-blur animate-fade-in flex items-center gap-3">
+          ✓ Shared to Social
+          <button onClick={() => navigate('social')} className="text-accent-violet hover:underline">View</button>
         </div>
       )}
 

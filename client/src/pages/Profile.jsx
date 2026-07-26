@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { GalleryCard } from '../components/GalleryCard';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useSocial } from '../hooks/useSocial';
+import { Badge } from '../components/social/Badge';
 import { EMOTION_HEX, EMOTION_CONFIGS } from '../constants/emotions';
 
 // Аватар: инициали върху цвят, изведен от username-а (детерминистичен hue)
@@ -39,12 +41,14 @@ export const levelFor = (points = 0) =>
 export function Profile({ navigate }) {
   const { user, logout, authFetch, backend } = useAuth();
   const { fetchGallery } = useArtworkStore();
+  const { fetchBadges } = useSocial();
   const [stats, setStats] = useState(null);
   const [works, setWorks] = useState([]);
   const [community, setCommunity] = useState([]);
   const [moodSessions, setMoodSessions] = useState([]);
   const [avatars, setAvatars] = useState([]);
   const [camAvatarId, setCamAvatarId] = useState(null);
+  const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const setCamChoice = async (id) => {
@@ -65,12 +69,14 @@ export function Profile({ navigate }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsRes, gallery, avatarRes] = await Promise.all([
+      const [statsRes, gallery, avatarRes, badgeRes] = await Promise.all([
         authFetch('/api/users/stats').then((r) => (r.ok ? r.json() : null)),
         fetchGallery().catch(() => []),
         authFetch('/api/users/avatar').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        user?.id ? fetchBadges(user.id).catch(() => []) : Promise.resolve([]),
       ]);
       if (avatarRes) { setAvatars(avatarRes.list || []); setCamAvatarId(avatarRes.camAvatarId || null); }
+      setBadges(badgeRes || []);
       setStats(statsRes);
       const mine = gallery.filter((a) => a.userId === user?.id);
       setWorks(mine);
@@ -85,7 +91,7 @@ export function Profile({ navigate }) {
     } finally {
       setLoading(false);
     }
-  }, [authFetch, fetchGallery, user?.id]);
+  }, [authFetch, fetchGallery, fetchBadges, user?.id]);
 
   useEffect(() => {
     load();
@@ -147,10 +153,10 @@ export function Profile({ navigate }) {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => navigate('compete')}
+              onClick={() => navigate('social')}
               className="rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 px-4 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
             >
-              🏁 Competitions
+              🖧 Social
             </button>
             <button
               onClick={async () => {
@@ -174,6 +180,18 @@ export function Profile({ navigate }) {
             </div>
           ))}
         </div>
+
+        {/* ── Award badges (спечелени сезонни титли) ── */}
+        {badges.length > 0 && (
+          <>
+            <h2 className="mt-12 mb-4 text-xs uppercase tracking-[0.3em] text-gray-500">Award badges</h2>
+            <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/[0.05] p-5 flex flex-wrap gap-2.5">
+              {badges.map((b) => (
+                <Badge key={b.id} badge={b} size="lg" />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* ── Achievements ── */}
         <h2 className="mt-12 mb-4 text-xs uppercase tracking-[0.3em] text-gray-500">Achievements</h2>

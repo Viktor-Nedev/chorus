@@ -8,16 +8,17 @@ import { WebForge } from './pages/WebForge';
 import { Sculpt } from './pages/Sculpt';
 import { Auth } from './pages/Auth';
 import { Profile } from './pages/Profile';
-import { Compete } from './pages/Compete';
+import { Social } from './pages/Social';
 import { TransitionVeil } from './components/TransitionVeil';
 import { Cursor } from './components/Cursor';
+import { NavOrb } from './components/NavOrb';
 import { useAuth } from './hooks/useAuth';
 
 const VEIL_IN_MS = 340;
 const VEIL_OUT_MS = 380;
 
 // Режимите изискват акаунт — гост се пренасочва към Auth и после обратно
-const PROTECTED = new Set(['solo', 'collective', 'moodcheck', 'webforge', 'sculpt', 'profile', 'compete']);
+const PROTECTED = new Set(['solo', 'collective', 'moodcheck', 'webforge', 'sculpt', 'profile', 'social']);
 
 export default function App() {
   const { user } = useAuth();
@@ -83,7 +84,10 @@ export default function App() {
       )}
       {screen === 'auth' && <Auth navigate={navigate} postAuthTarget={postAuthTarget} />}
       {screen === 'profile' && <Profile navigate={navigate} />}
-      {screen === 'compete' && <Compete navigate={navigate} />}
+      {screen === 'social' && <Social navigate={navigate} />}
+
+      {/* Глобален радиален nav — само след логин */}
+      {user && <NavOrb navigate={navigate} current={screen} />}
 
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />
