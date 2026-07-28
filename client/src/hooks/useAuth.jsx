@@ -2,13 +2,10 @@
 // fallback на Express сървъра. Излага единен интерфейс независимо от
 // backend-а: { user, token, login, register, logout, authFetch }.
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabase = SUPA_URL && SUPA_KEY ? createClient(SUPA_URL, SUPA_KEY) : null;
 export const AUTH_BACKEND = supabase ? 'supabase' : 'local';
 
 const STORAGE_KEY = 'chorus-auth';

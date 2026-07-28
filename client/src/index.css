@@ -334,6 +334,12 @@ input[type='color']::-webkit-color-swatch {
 }
 .animate-slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* ─── NavOrb full-screen launcher card entrance ─── */
+@keyframes launcherIn {
+  from { transform: translateY(18px) scale(0.94); opacity: 0; filter: blur(6px); }
+  to { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
+}
+
 /* ─── Notebook page-flip (InstructionsBook) ─── */
 @keyframes book-flip-next {
   from { transform: rotateY(-28deg); opacity: 0; }

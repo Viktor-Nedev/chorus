@@ -85,7 +85,7 @@ export function SeasonalAwards({ me, toast }) {
                   <span className="text-lg">{cat.icon}</span>
                   <span className="text-gray-400">{cat.label}:</span>
                   <span className="text-white font-medium">{w.username}</span>
-                  <span className="text-[11px] text-gray-600">({w.votes} votes)</span>
+                  {w.votes != null && <span className="text-[11px] text-gray-600">({w.votes} votes)</span>}
                 </div>
               );
             })}

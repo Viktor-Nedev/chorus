@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import Lenis from 'lenis';
 import { HeroScene } from '../components/landing/HeroScene';
+import { SideFireworks } from '../components/landing/SideFireworks';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { useAuth } from '../hooks/useAuth';
 
@@ -312,6 +313,9 @@ export function Landing({ navigate }) {
       {/* WebGL фон — ФИКСИРАН за целия сайт */}
       <HeroScene scrollProgressRef={scrollProgressRef} className="fixed inset-0 z-0" />
 
+      {/* Атмосферни фойерверки/искри в празните странични полета */}
+      <SideFireworks />
+
       {/* Кинематографична винетка */}
       <div className="cinema-vignette fixed inset-0 z-10 pointer-events-none" />
 
@@ -374,7 +378,7 @@ export function Landing({ navigate }) {
               ref={heroSubRef}
               className="mt-4 font-body text-sm md:text-base text-gray-400 tracking-[0.25em] uppercase text-center will-change-transform"
             >
-              Your voice becomes the brush
+              Your body becomes the brush
             </p>
             <div className="absolute bottom-10 flex flex-col items-center gap-2 text-gray-500">
               <span className="text-[10px] tracking-[0.4em] uppercase">Scroll</span>
@@ -387,14 +391,6 @@ export function Landing({ navigate }) {
             ref={setSectionRef(1)}
             className="relative flex items-center px-6 md:px-16 py-24 bg-gradient-to-b from-transparent via-ink/50 to-ink/75 overflow-hidden"
           >
-            {/* Ghost надпис зад съдържанието */}
-            <span
-              data-parallax="0.16"
-              className="text-ghost-outline absolute -left-8 top-1/2 -translate-y-1/2 font-display font-extrabold leading-none whitespace-nowrap will-change-transform"
-              style={{ fontSize: '16vw' }}
-            >
-              CHORUS
-            </span>
             <div className={`relative z-10 w-full max-w-lg ${sideClass('right')}`}>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-6" data-reveal>
                 What is Chorus
@@ -426,13 +422,6 @@ export function Landing({ navigate }) {
             ref={setSectionRef(2)}
             className="relative flex items-center px-6 md:px-16 py-16 bg-gradient-to-b from-transparent via-ink/50 to-ink/75 overflow-hidden"
           >
-            <span
-              data-parallax="0.1"
-              className="text-ghost-outline absolute right-0 top-6 font-display font-extrabold leading-none will-change-transform"
-              style={{ fontSize: '11vw' }}
-            >
-              PLAY
-            </span>
             <div className={`relative z-10 w-full max-w-2xl ${sideClass('left')}`}>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-8" data-reveal>
                 Choose your mode
@@ -485,13 +474,6 @@ export function Landing({ navigate }) {
 
           {/* ── 3 INSTRUMENTS — партикали ляво, списък дясно ── */}
           <section ref={setSectionRef(3)} className="relative px-6 md:px-16 py-20 bg-ink/70 overflow-hidden">
-            <span
-              data-parallax="0.14"
-              className="text-ghost-outline absolute -left-4 bottom-0 font-display font-extrabold leading-none will-change-transform"
-              style={{ fontSize: '12vw' }}
-            >
-              SOUND
-            </span>
             <div className={`relative z-10 w-full max-w-xl ${sideClass('right')}`}>
               <div className="text-[11px] tracking-[0.4em] uppercase text-gray-500 mb-12" data-reveal>
                 The instruments
@@ -521,14 +503,6 @@ export function Landing({ navigate }) {
 
           {/* ── 4 FOOTER ── */}
           <footer ref={setSectionRef(4)} className="relative px-6 md:px-16 pt-16 pb-8 bg-ink/90 border-t border-ink-line overflow-hidden">
-            {/* Watermark */}
-            <span
-              data-parallax="0.08"
-              className="text-ghost-outline absolute left-1/2 -translate-x-1/2 -bottom-6 font-display font-extrabold leading-none whitespace-nowrap will-change-transform"
-              style={{ fontSize: '19vw' }}
-            >
-              CHORUS
-            </span>
             <div className="relative z-10 max-w-5xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-10" data-reveal-stagger>
                 {/* Колона 1 — бранд */}
