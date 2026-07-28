@@ -198,13 +198,17 @@ void main() {
   float aa = fwidth(bands);
   float line = 1.0 - smoothstep(0.0, aa * 1.5 + 0.02, f);
 
-  float mask = smoothstep(1.0, 0.35, abs(vUv.y - 0.5) * 2.0) * (0.45 + 0.55 * (w1 * 0.5 + 0.5));
+  // По-широка вертикална лента + вдигнат под на шума → вълничките не изтъняват
+  // до невидимост при анимацията.
+  float mask = smoothstep(1.15, 0.25, abs(vUv.y - 0.5) * 2.0) * (0.65 + 0.35 * (w1 * 0.5 + 0.5));
 
   vec3 col = mix(uColorDim, uColorBase, w2 * 0.5 + 0.5);
   col = mix(col, uColorCyan,   smoothstep(0.55, 0.90, fbm(uv * 0.8 + 5.0 + t)) * 0.35);
   col = mix(col, uColorViolet, smoothstep(0.60, 0.95, w1) * 0.25);
 
-  float alpha = line * mask * 0.10 * (1.0 - 0.5 * uScatter);
+  // По-висока базова видимост и по-мек scroll fade → белите вълнички се виждат
+  // постоянно, а не само на моменти.
+  float alpha = line * mask * 0.17 * (1.0 - 0.3 * uScatter);
   gl_FragColor = vec4(col * alpha, 1.0);
 }
 `;

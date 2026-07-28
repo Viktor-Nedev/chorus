@@ -7,9 +7,11 @@ import { FlowingLines } from './hero/FlowingLines';
 import { DustField } from './hero/DustField';
 import { useHeroPointer } from './hero/useHeroPointer';
 
-// Перформанс нива — никога не преалокираме геометрия, само drawRange/DPR
+// Перформанс нива — никога не преалокираме геометрия, само drawRange/DPR.
+// „Течащите линии" се рендерират на ВСИЧКИ нива (една евтина fullscreen равнина),
+// за да не изчезват фоновите бели вълнички при спад на кадрите/downgrade на нивото.
 const TIERS = [
-  { particles: 8000, dust: 150, lines: false, dpr: 1.25 },
+  { particles: 8000, dust: 150, lines: true, dpr: 1.25 },
   { particles: 14000, dust: 250, lines: true, dpr: 1.5 },
   { particles: 24000, dust: 400, lines: true, dpr: 1.75 },
 ];
