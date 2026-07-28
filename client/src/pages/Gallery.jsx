@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { PostComposer } from '../components/social/PostComposer';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+// Видео URL: абсолютен (Supabase Storage) → както е; относителен (Express) → с префикс
+const mediaUrl = (u) => (!u ? u : u.startsWith('http') ? u : `${SERVER_URL}${u}`);
 
 export function Gallery({ navigate }) {
   const { fetchGallery, fetchArtwork, deleteArtwork, loading } = useArtworkStore();
@@ -165,7 +167,7 @@ export function Gallery({ navigate }) {
           >
             {selected.videoUrl ? (
               <video
-                src={`${SERVER_URL}${selected.videoUrl}`}
+                src={mediaUrl(selected.videoUrl)}
                 poster={selected.imageData}
                 controls
                 autoPlay
@@ -216,7 +218,7 @@ export function Gallery({ navigate }) {
 
               <div className="mt-6 flex gap-3">
                 <a
-                  href={selected.videoUrl ? `${SERVER_URL}${selected.videoUrl}` : selected.imageData}
+                  href={selected.videoUrl ? mediaUrl(selected.videoUrl) : selected.imageData}
                   download={`${selected.title || 'chorus'}.${selected.videoUrl ? 'webm' : 'png'}`}
                   className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500 transition"
                 >

@@ -8,7 +8,7 @@ import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { EMOTION_HEX } from '../constants/emotions';
 import { extractPalette } from '../engine/paletteExtract';
 import { useMediaPipe } from '../hooks/useMediaPipe';
-import { useAuth } from '../hooks/useAuth';
+import { useAvatars } from '../hooks/useAvatars';
 import { useAudio } from '../hooks/useAudio';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useVoiceCommands } from '../hooks/useVoiceCommands';
@@ -209,13 +209,12 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
     useMediaPipe(videoRef, liveEnabled);
   const { initAudio, stopAudio, getAudioData, getWaveform } = useAudio();
   const { saveArtwork, generatePoem, saving } = useArtworkStore();
-  const { authFetch } = useAuth();
+  const { getAvatars } = useAvatars();
 
   // Particle аватар вместо реалната камера (по избор от профила)
   const [camAvatar, setCamAvatar] = useState(null);
   useEffect(() => {
-    authFetch('/api/users/avatar')
-      .then((r) => (r.ok ? r.json() : null))
+    getAvatars()
       .then((d) => {
         if (d?.camAvatarId) {
           const a = (d.list || []).find((x) => x.id === d.camAvatarId);
@@ -223,7 +222,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
         }
       })
       .catch(() => {});
-  }, [authFetch]);
+  }, [getAvatars]);
 
   // Emotion history — по 1 запис в секунда
   const [emotionHistory, setEmotionHistory] = useState([]);

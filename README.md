@@ -42,6 +42,25 @@ npm run dev          # → http://localhost:5173
 - **client/** → Vercel (`vite build` → `dist/`), задай `VITE_SERVER_URL` env към Railway URL-а
 - **server/** → Railway / Render (`node index.js`), задай `GEMINI_API_KEY` и `CLIENT_URL`
 
+### Serverless (Supabase) — за да работят логин/регистрация и Social от всяко устройство
+
+Хостнатият клиент на Vercel няма достъп до `localhost:3001`, затова auth и данните трябва да
+минат през Supabase (иначе логин от телефон/друг лаптоп дава `ERR_CONNECTION_REFUSED`).
+
+1. **Supabase Dashboard**
+   - Project Settings → API → копирай **anon public** key.
+   - Authentication → Providers → **Email** = on; за незабавен signup **изключи „Confirm email"**
+     (иначе регистрацията иска email потвърждение). URL Configuration → Site URL = Vercel домейна.
+   - SQL Editor → пусни `supabase/social.sql`, после `supabase/data.sql` (таблици + RLS +
+     Storage bucket `artwork-videos`).
+2. **Vercel → Settings → Environment Variables:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+   → **Redeploy** (Vite вгражда env при билд).
+3. **Локално** (по избор): същите стойности в `client/.env`. Празен ключ = автоматичен Express
+   fallback (`localhost:3001`) — работи само на машината, която върти `/server`.
+
+Остават сървърно-зависими (нужен хостнат Node сървър): **Collective** (Socket.io realtime),
+**поеми** и **WebForge** (Gemini + hosting).
+
 ## Gestures
 
 | Gesture | Effect |

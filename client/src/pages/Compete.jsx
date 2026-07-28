@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useCompetitions } from '../hooks/useCompetitions';
 
 // Състезания по рисуване: тема + краен срок; всеки влиза с една своя
 // творба; един глас на потребител (не за себе си); победител при изтичане.
@@ -18,8 +19,9 @@ function Countdown({ endsAt }) {
 }
 
 export function Compete({ navigate, embedded = false }) {
-  const { user, authFetch } = useAuth();
+  const { user } = useAuth();
   const { fetchGallery } = useArtworkStore();
+  const comp = useCompetitions();
   const [comps, setComps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -35,24 +37,22 @@ export function Compete({ navigate, embedded = false }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await authFetch('/api/competitions');
-      setComps(await res.json());
+      setComps(await comp.list());
     } catch {
       showToast('Could not load competitions');
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  }, [comp]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const act = async (path, body, okMsg) => {
+  // Изпълнява promise, който връща обновено състезание, и го слива в списъка
+  const mergeResult = async (promise, okMsg) => {
     try {
-      const res = await authFetch(path, { method: 'POST', body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      const data = await promise;
       setComps((prev) => {
         const i = prev.findIndex((c) => c.id === data.id);
         if (i >= 0) {
@@ -135,7 +135,7 @@ export function Compete({ navigate, embedded = false }) {
                   onToggle={() => setExpanded(expanded === c.id ? null : c.id)}
                   onEnter={() => openEnter(c.id)}
                   onVote={(entryUserId) =>
-                    act(`/api/competitions/${c.id}/vote`, { entryUserId }, '✓ Vote recorded')
+                    mergeResult(comp.vote(c.id, entryUserId), '✓ Vote recorded')
                   }
                 />
               ))}
@@ -167,7 +167,7 @@ export function Compete({ navigate, embedded = false }) {
         <CreateModal
           onCancel={() => setShowCreate(false)}
           onCreate={async (theme, description, hours) => {
-            const ok = await act('/api/competitions', { theme, description, hours }, '✓ Competition created');
+            const ok = await mergeResult(comp.create({ theme, description, hours }), '✓ Competition created');
             if (ok) setShowCreate(false);
           }}
         />
@@ -188,11 +188,7 @@ export function Compete({ navigate, embedded = false }) {
                   <button
                     key={w.id}
                     onClick={async () => {
-                      const ok = await act(
-                        `/api/competitions/${enterFor}/enter`,
-                        { artworkId: w.id },
-                        '✓ Entered!'
-                      );
+                      const ok = await mergeResult(comp.enter(enterFor, w.id), '✓ Entered!');
                       if (ok) setEnterFor(null);
                     }}
                     className="rounded-lg overflow-hidden border border-ink-line hover:border-accent-violet transition text-left"

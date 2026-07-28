@@ -16,6 +16,7 @@ import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useAuth } from '../hooks/useAuth';
+import { useAvatars } from '../hooks/useAvatars';
 import { MobileNotice } from '../components/MobileNotice';
 
 function hslToRgb(h, s, l) {
@@ -234,11 +235,10 @@ function Session({ socket, navigate }) {
     videoRef,
     true
   );
-  const { authFetch } = useAuth();
+  const { getAvatars } = useAvatars();
   const [camAvatar, setCamAvatar] = useState(null);
   useEffect(() => {
-    authFetch('/api/users/avatar')
-      .then((r) => (r.ok ? r.json() : null))
+    getAvatars()
       .then((d) => {
         if (d?.camAvatarId) {
           const a = (d.list || []).find((x) => x.id === d.camAvatarId);
@@ -246,7 +246,7 @@ function Session({ socket, navigate }) {
         }
       })
       .catch(() => {});
-  }, [authFetch]);
+  }, [getAvatars]);
   const { initAudio, stopAudio, getAudioData } = useAudio();
   const { saveArtwork, generatePoem, saving } = useArtworkStore();
 

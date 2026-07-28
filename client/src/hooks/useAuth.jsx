@@ -8,6 +8,20 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
 export const AUTH_BACKEND = supabase ? 'supabase' : 'local';
 
+// Предупреди девелопъра, ако сайтът е деплойнат (не localhost), но Supabase не е
+// конфигуриран → auth ще удря localhost:3001 и ще се проваля от други устройства.
+if (typeof window !== 'undefined' && AUTH_BACKEND === 'local') {
+  const host = window.location.hostname;
+  if (host !== 'localhost' && host !== '127.0.0.1') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[CHORUS] Supabase is not configured (VITE_SUPABASE_ANON_KEY is empty), so auth falls back ' +
+      `to the local server at ${SERVER_URL}. On a hosted site this is unreachable from other ` +
+      'devices — set VITE_SUPABASE_ANON_KEY in your Vercel env and redeploy.'
+    );
+  }
+}
+
 const STORAGE_KEY = 'chorus-auth';
 const AuthContext = createContext(null);
 
@@ -52,11 +66,20 @@ export function AuthProvider({ children }) {
   }, []);
 
   const localAuth = async (path, body) => {
-    const res = await fetch(`${SERVER_URL}/api/auth/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    let res;
+    try {
+      res = await fetch(`${SERVER_URL}/api/auth/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // „Failed to fetch" = сървърът е недостъпен (напр. деплойнат сайт без Supabase)
+      throw new Error(
+        "Can't reach the CHORUS server. On the hosted app, sign-in needs Supabase — " +
+        'ask the admin to set VITE_SUPABASE_ANON_KEY and redeploy.'
+      );
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Authentication failed');
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));

@@ -47,6 +47,12 @@ const cleanTags = (tags) =>
     ? [...new Set(tags.map((t) => String(t).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24)).filter(Boolean))].slice(0, 6)
     : [];
 async function galleryArtwork(artworkId) {
+  if (supabase) {
+    const { data, error } = await supabase.from('artworks')
+      .select('image_data,title,mode,user_id').eq('id', artworkId).single();
+    if (error || !data) throw new Error('Artwork not found');
+    return { imageData: data.image_data, title: data.title, mode: data.mode, userId: data.user_id };
+  }
   const res = await fetch(`${SERVER_URL}/api/gallery/${artworkId}`);
   if (!res.ok) throw new Error('Artwork not found');
   return res.json();

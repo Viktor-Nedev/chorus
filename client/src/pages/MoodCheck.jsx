@@ -8,9 +8,9 @@ import { CustomAvatarModal } from '../components/moodcheck/CustomAvatarModal';
 import { DrawAvatarModal } from '../components/moodcheck/DrawAvatarModal';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useArtworkStore } from '../hooks/useArtworkStore';
+import { useAvatars } from '../hooks/useAvatars';
 import { useRecorder } from '../hooks/useRecorder';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { useAuth } from '../hooks/useAuth';
 import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { MIRROR_PAGES } from '../components/help/manuals';
 import { EMOTION_CONFIGS, EMOTION_HEX } from '../constants/emotions';
@@ -79,7 +79,7 @@ export function MoodCheck({ navigate }) {
     handLandmarksBufRef, handStampRef, handsBufRef, handCountRef, detect, ready, error,
   } = useMediaPipe(videoRef, true);
   const { saveArtwork, uploadVideo, saving } = useArtworkStore();
-  const { authFetch } = useAuth();
+  const { getAvatars, saveAvatar, deleteAvatar: deleteAvatarApi } = useAvatars();
 
   // Camera FX (thermal lens / point cloud / …)
   const [fxEffect, setFxEffect] = useState(null); // null = изкл. (аватарът)
@@ -109,11 +109,10 @@ export function MoodCheck({ navigate }) {
 
   // Зареди списъка запазени аватари
   const loadAvatars = useCallback(() => {
-    authFetch('/api/users/avatar')
-      .then((r) => (r.ok ? r.json() : null))
+    getAvatars()
       .then((d) => { if (d?.list) setMyAvatars(d.list); })
       .catch(() => {});
-  }, [authFetch]);
+  }, [getAvatars]);
   useEffect(() => { loadAvatars(); }, [loadAvatars]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -134,8 +133,7 @@ export function MoodCheck({ navigate }) {
   const saveCustom = async (params) => {
     setSavingAvatar(true);
     try {
-      const res = await authFetch('/api/users/avatar', { method: 'PUT', body: JSON.stringify(params) });
-      const data = await res.json();
+      const data = await saveAvatar(params);
       setMyAvatars(data.list || []);
       const saved = data.avatar;
       setShowCustom(false);
@@ -152,8 +150,7 @@ export function MoodCheck({ navigate }) {
   const deleteAvatar = async (id, e) => {
     e.stopPropagation();
     try {
-      const res = await authFetch(`/api/users/avatar/${id}`, { method: 'DELETE' });
-      const data = await res.json();
+      const data = await deleteAvatarApi(id);
       setMyAvatars(data.list || []);
       if (avatarId === id) selectAvatar(DEFAULT_AVATAR);
     } catch { /* ignore */ }

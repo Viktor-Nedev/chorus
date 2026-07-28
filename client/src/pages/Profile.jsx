@@ -3,7 +3,9 @@ import { GalleryCard } from '../components/GalleryCard';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useSocial } from '../hooks/useSocial';
+import { useAvatars } from '../hooks/useAvatars';
 import { Badge } from '../components/social/Badge';
+import { supabase } from '../lib/supabase';
 import { EMOTION_HEX, EMOTION_CONFIGS } from '../constants/emotions';
 
 // Аватар: инициали върху цвят, изведен от username-а (детерминистичен hue)
@@ -38,10 +40,42 @@ export const LEVELS = [
 export const levelFor = (points = 0) =>
   [...LEVELS].reverse().find((l) => points >= l.min) || LEVELS[0];
 
+// Профилни stats от Supabase (когато няма Node сървър). Arena точки/battle wins
+// идват от Collective realtime сървъра → недостъпни serverless → 0.
+async function computeSupaStats(uid) {
+  const [artQ, compQ, entryQ, voteQ, badgeQ] = await Promise.all([
+    supabase.from('artworks').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+    supabase.from('competitions').select('id,ends_at'),
+    supabase.from('competition_entries').select('competition_id,user_id'),
+    supabase.from('competition_votes').select('competition_id,entry_user_id'),
+    supabase.from('badges').select('id').eq('user_id', uid),
+  ]);
+  const comps = compQ.data || [], entries = entryQ.data || [], votes = voteQ.data || [];
+  let competitionsWon = 0;
+  for (const c of comps) {
+    if (Date.now() <= new Date(c.ends_at).getTime()) continue;
+    const ents = entries.filter((e) => e.competition_id === c.id);
+    if (!ents.length) continue;
+    const tally = {};
+    votes.filter((v) => v.competition_id === c.id).forEach((v) => { tally[v.entry_user_id] = (tally[v.entry_user_id] || 0) + 1; });
+    const best = ents.map((e) => e.user_id).sort((a, b) => (tally[b] || 0) - (tally[a] || 0))[0];
+    if (best === uid) competitionsWon++;
+  }
+  return {
+    artworks: artQ.count || 0,
+    votesReceived: votes.filter((v) => v.entry_user_id === uid).length,
+    competitionsWon,
+    competitionsEntered: entries.filter((e) => e.user_id === uid).length,
+    badges: (badgeQ.data || []).length,
+    battleWins: 0, points: 0, roundsPlayed: 0, roundWins: 0, aiWins: 0,
+  };
+}
+
 export function Profile({ navigate }) {
   const { user, logout, authFetch, backend } = useAuth();
   const { fetchGallery } = useArtworkStore();
   const { fetchBadges } = useSocial();
+  const { getAvatars, setCamAvatar, deleteAvatar } = useAvatars();
   const [stats, setStats] = useState(null);
   const [works, setWorks] = useState([]);
   const [community, setCommunity] = useState([]);
@@ -53,14 +87,11 @@ export function Profile({ navigate }) {
 
   const setCamChoice = async (id) => {
     setCamAvatarId(id);
-    try {
-      await authFetch('/api/users/avatar/cam', { method: 'PUT', body: JSON.stringify({ camAvatarId: id }) });
-    } catch { /* ignore */ }
+    try { await setCamAvatar(id); } catch { /* ignore */ }
   };
   const removeAvatar = async (id) => {
     try {
-      const res = await authFetch(`/api/users/avatar/${id}`, { method: 'DELETE' });
-      const d = await res.json();
+      const d = await deleteAvatar(id);
       setAvatars(d.list || []);
       setCamAvatarId(d.camAvatarId || null);
     } catch { /* ignore */ }
@@ -70,9 +101,12 @@ export function Profile({ navigate }) {
     setLoading(true);
     try {
       const [statsRes, gallery, avatarRes, badgeRes] = await Promise.all([
-        authFetch('/api/users/stats').then((r) => (r.ok ? r.json() : null)),
+        (supabase && user?.id
+          ? computeSupaStats(user.id)
+          : authFetch('/api/users/stats').then((r) => (r.ok ? r.json() : null))
+        ).catch(() => null),
         fetchGallery().catch(() => []),
-        authFetch('/api/users/avatar').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        getAvatars().catch(() => null),
         user?.id ? fetchBadges(user.id).catch(() => []) : Promise.resolve([]),
       ]);
       if (avatarRes) { setAvatars(avatarRes.list || []); setCamAvatarId(avatarRes.camAvatarId || null); }
@@ -91,7 +125,7 @@ export function Profile({ navigate }) {
     } finally {
       setLoading(false);
     }
-  }, [authFetch, fetchGallery, fetchBadges, user?.id]);
+  }, [authFetch, fetchGallery, fetchBadges, getAvatars, user?.id]);
 
   useEffect(() => {
     load();
