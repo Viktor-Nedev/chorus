@@ -14,10 +14,19 @@ import { analyzeCanvas, serializeObjects } from '../engine/sketchAnalyzer';
 import { buildWireframeHtml } from '../engine/wireframePreview';
 import { buildSiteMap } from '../engine/pageLinks';
 import { downloadProjectZip } from '../engine/projectZip';
+import {
+  DEFAULT_PALETTE, harmonizePalette, paletteFromSketch, injectPaletteVars,
+} from '../engine/sitePalette';
+import { annotate, stripAnnotations, applyTextEdit, applyStyleEdit, applyDelete } from '../engine/htmlEdit';
+import { parseWebforgeCommand, VOICE_EXAMPLES } from '../engine/webforgeVoice';
 import { useWebforge } from '../hooks/useWebforge';
 import { useSitePublish } from '../hooks/useSitePublish';
 import { useMediaPipe } from '../hooks/useMediaPipe';
+import { useAudio } from '../hooks/useAudio';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { VideoProcessor } from '../components/VideoProcessor';
+import { EmotionSidebar } from '../components/HUD';
+import { EMOTION_HEX } from '../constants/emotions';
 import { MobileNotice } from '../components/MobileNotice';
 import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { WEBFORGE_PAGES } from '../components/help/manuals';
@@ -33,11 +42,14 @@ const TOOLS = [
   { id: 'DRAW', icon: '✏', label: 'Draw (D) — freehand with the selected brush' },
   { id: 'ERASER', icon: '⌫', label: 'Eraser (E) — rubs out freehand strokes' },
   { id: 'FILL', icon: '🪣', label: 'Fill (G) — click a block to colour it, empty space for the page background' },
-  { id: 'HAND', icon: '🖐', label: 'Hand draw — close your hand to draw, open palm to pause' },
+  { id: 'HAND', icon: '🖐', label: 'Hand draw — point with your finger; close your hand to draw, open palm to pause' },
+  { id: 'VOICE', icon: '🗣', label: 'Voice paint — aim with your finger and speak; louder = thicker' },
 ];
 
 // Инструменти, при които платното е в режим "рисуване"
 const DRAW_TOOLS = new Set(['DRAW', 'ERASER']);
+// Инструменти, които изискват камера/микрофон
+const LIVE_TOOLS = new Set(['HAND', 'VOICE']);
 // Инструменти, които веднага поставят обект и се връщат към SELECT
 const PLACE_TOOLS = new Set(['TEXT', 'IMAGE', 'BUTTON', 'NAV']);
 
@@ -103,6 +115,15 @@ export function WebForge({ navigate }) {
   const [showColorPopover, setShowColorPopover] = useState(false);
   const [showComponentPopover, setShowComponentPopover] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Тулбарът може да се свие, за да не яде място от платното
+  const [toolbarOpen, setToolbarOpen] = useState(() => {
+    try { return localStorage.getItem('webforge-toolbar') !== 'closed'; } catch { return true; }
+  });
+  const closePopovers = useCallback(() => {
+    setShowBrushPopover(false);
+    setShowColorPopover(false);
+    setShowComponentPopover(false);
+  }, []);
 
   // Страници — всяка е отделен канвас и отделен HTML файл
   const [pages, setPages] = useState(() => [blankPage('Home')]);
@@ -112,12 +133,38 @@ export function WebForge({ navigate }) {
   const [pageHeight, setPageHeight] = useState(DEFAULT_PAGE_HEIGHT);
   const siteMap = useMemo(() => buildSiteMap(pages), [pages]);
 
+  // Палитра на сайта — свързва нарисуваното с генерирания CSS
+  const [palette, setPalette] = useState(DEFAULT_PALETTE);
+  const paletteRef = useRef(DEFAULT_PALETTE);
+  paletteRef.current = palette;
+  const [paletteAuto, setPaletteAuto] = useState(true); // докато е true, следва скицата
+
   // Публикуване / рисуване с ръка
   const publisher = useSitePublish();
   const [publishedUrl, setPublishedUrl] = useState(null);
-  const [handOn, setHandOn] = useState(false);
   const videoRef = useRef(null);
   const [isEmpty, setIsEmpty] = useState(true);
+
+  // Камера/микрофон, емоция, глас (както в Solo)
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const [emotionColor, setEmotionColor] = useState(false);
+  const [voiceCommandsOn, setVoiceCommandsOn] = useState(false);
+  const [handSmooth, setHandSmooth] = useState(true);
+  const [handDrawing, setHandDrawing] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [sidebarPos, setSidebarPos] = useState(null); // null = докиран; {x,y} = преместен
+
+  // Мостове към функции, дефинирани по-надолу (гласовите команди се създават
+  // веднъж, но трябва да викат актуалните handler-и)
+  const handleToolClickRef = useRef(null);
+  const pickBrushRef = useRef(null);
+  const placeAtCenterRef = useRef(null);
+  const addPageRef = useRef(null);
+  const stepPageRef = useRef(null);
+  const generateRef = useRef(null);
+  const analyzeRef = useRef(null);
+  const publishRef = useRef(null);
+  const downloadRef = useRef(null);
 
   // Инструментът се чете от canvas handler-ите без re-mount
   const toolRef = useRef({ tool: 'SELECT', color: '#F5F5F5', brushType: 'pen' });
@@ -168,17 +215,51 @@ export function WebForge({ navigate }) {
       if (!canvas) return;
       const objects = serializeObjects(canvas);
       setIsEmpty(objects.length === 0);
+
+      // Палитрата се чете от скицата, докато потребителят не я е пипал ръчно
+      let pal = paletteRef.current;
+      if (paletteAutoRef.current && objects.length) {
+        pal = paletteFromSketch(objects, canvas.getElement?.());
+        paletteRef.current = pal;
+        setPalette(pal);
+      }
+
       setWireframeHtml(
         objects.length
           ? buildWireframeHtml(
               objects,
               { width: canvas.width, height: canvas.height },
-              { guides: showGuidesRef.current }
+              { guides: showGuidesRef.current, palette: pal }
             )
           : null
       );
     }, 300);
   }, []);
+
+  const paletteAutoRef = useRef(true);
+  paletteAutoRef.current = paletteAuto;
+
+  // Ръчна промяна на палитрата → спира авто-четенето и пречертава
+  const updatePalette = useCallback((patch) => {
+    setPaletteAuto(false);
+    setPalette((p) => {
+      const next = harmonizePalette({ ...p, ...patch });
+      paletteRef.current = next;
+      return next;
+    });
+    rebuildWireframe();
+  }, [rebuildWireframe]);
+
+  const rereadPalette = useCallback(() => {
+    const canvas = canvasApiRef.current?.getCanvas();
+    if (!canvas) return;
+    const pal = paletteFromSketch(serializeObjects(canvas), canvas.getElement?.());
+    paletteRef.current = pal;
+    setPalette(pal);
+    setPaletteAuto(true);
+    rebuildWireframe();
+    showToast('✓ Palette read from your sketch');
+  }, [rebuildWireframe]);
 
   // Превключването на Guides веднага пречертава preview-то
   useEffect(() => { rebuildWireframe(); }, [showGuides, rebuildWireframe]);
@@ -186,7 +267,7 @@ export function WebForge({ navigate }) {
   // ── Персистенция в localStorage (възстановява се при връщане в режима)
   const persistTimer = useRef(null);
   const persistState = useRef({});
-  persistState.current = { projectName, projectId, files, hasBackend, components, summary, stylePreset, pages, activePageId };
+  persistState.current = { projectName, projectId, files, hasBackend, components, summary, stylePreset, pages, activePageId, palette, paletteAuto };
 
   // Текущият канвас → в масива със страници (без setState — за persist/generate)
   const snapshotPages = useCallback(() => {
@@ -287,6 +368,12 @@ export function WebForge({ navigate }) {
         setComponents(saved.components || []);
         setSummary(saved.summary || '');
         setStylePreset(saved.stylePreset || 'Minimal');
+        if (saved.palette) {
+          const pal = harmonizePalette(saved.palette);
+          setPalette(pal);
+          paletteRef.current = pal;
+        }
+        if (saved.paletteAuto === false) setPaletteAuto(false);
         // Миграция от стария едно-канвасов формат
         const savedPages = saved.pages?.length
           ? saved.pages
@@ -341,6 +428,19 @@ export function WebForge({ navigate }) {
     setPages((ps) => ps.map((p) => (p.id === id ? { ...p, name } : p)));
   }, []);
 
+  // Следваща/предишна страница (за гласовите команди)
+  const stepPage = useCallback((delta) => {
+    const ps = persistState.current.pages || [];
+    const i = ps.findIndex((p) => p.id === activePageIdRef.current);
+    const next = ps[(i + delta + ps.length) % ps.length];
+    if (next && next.id !== activePageIdRef.current) {
+      switchPage(next.id);
+      showToast(`🎙 ${next.name}`);
+    }
+  }, [switchPage]);
+  addPageRef.current = addPage;
+  stepPageRef.current = stepPage;
+
   const deletePage = useCallback((id) => {
     const snapped = snapshotPages().filter((p) => p.id !== id);
     if (!snapped.length) return;
@@ -364,40 +464,121 @@ export function WebForge({ navigate }) {
     showToast(`✓ ${tpl.name} added — adjust it, then Generate`);
   };
 
-  // ── Рисуване с ръка: затворена длан пише, отворена длан пауза
-  const { gestureRef, handPositionRef, detect } = useMediaPipe(videoRef, handOn);
-  const handStrokeRef = useRef([]);
-  const handSmoothRef = useRef(null);
+  // ── Камера/микрофон (както в Solo): жест, емоция, звук
+  const {
+    emotion, gesture, gestureRef, handPositionRef, handLandmarksBufRef, handStampRef,
+    landmarksBufRef, landmarkStampRef, detect,
+  } = useMediaPipe(videoRef, liveEnabled);
+  const { initAudio, stopAudio, getAudioData, getWaveform } = useAudio();
+
+  const toggleLive = useCallback(async () => {
+    if (liveEnabled) {
+      stopAudio();
+      setLiveEnabled(false);
+      return;
+    }
+    setLiveEnabled(true);
+    try { await initAudio(); } catch { showToast('Microphone unavailable — camera only'); }
+  }, [liveEnabled, initAudio, stopAudio]);
+
+  // Цветът следва емоцията, докато режимът е включен
+  useEffect(() => {
+    if (emotionColor) setBrushColor(EMOTION_HEX[emotion] || EMOTION_HEX.neutral);
+  }, [emotion, emotionColor]);
+
+  // ── Рисуване с ПРЪСТ (връхчето на показалеца, landmark 8) — както в Solo.
+  // Затворена длан/щипка = пише, отворена длан = пауза.
+  const strokeRef = useRef([]);
+  const smoothRef = useRef(null);
+
+  const canvasPointFromNorm = useCallback((nx, ny) => {
+    const canvas = canvasApiRef.current?.getCanvas();
+    if (!canvas) return null;
+    const host = canvas.getElement()?.parentElement?.parentElement;
+    const scrollTop = host?.scrollTop || 0;
+    const viewH = host?.clientHeight || canvas.height;
+    return { x: (1 - nx) * canvas.width, y: ny * viewH + scrollTop }; // огледално
+  }, []);
 
   useEffect(() => {
-    if (!handOn || tool !== 'HAND') return undefined;
+    if (!liveEnabled || (tool !== 'HAND' && tool !== 'VOICE')) return undefined;
     const id = setInterval(() => {
       const api = canvasApiRef.current;
-      const canvas = api?.getCanvas();
-      if (!canvas) return;
-      const drawing = gestureRef.current === 'CLOSED_FIST' || gestureRef.current === 'PINCH';
+      if (!api?.getCanvas()) return;
+
+      // Позиция: връхче на показалеца, ако е свежо; иначе центърът на ръката
+      let nx = handPositionRef.current.x;
+      let ny = handPositionRef.current.y;
+      if (performance.now() - (handStampRef.current || 0) < 250) {
+        const buf = handLandmarksBufRef.current;
+        nx = buf[8 * 3];
+        ny = buf[8 * 3 + 1];
+      }
+
+      // Кога пишем: HAND → жест; VOICE → сила на гласа
+      let drawing;
+      let width = brushWidth;
+      if (tool === 'VOICE') {
+        const level = getAudioData()?.totalLevel || 0;
+        drawing = level > 0.06; // праг срещу фонов шум
+        width = Math.max(2, Math.min(40, brushWidth + level * 60));
+      } else {
+        drawing = gestureRef.current === 'CLOSED_FIST' || gestureRef.current === 'PINCH';
+      }
+      setHandDrawing(drawing);
+
       if (!drawing) {
-        if (handStrokeRef.current.length > 1) {
-          api.strokeFromPoints(handStrokeRef.current, { color: brushColor, width: brushWidth, type: brushType });
+        if (strokeRef.current.length > 1) {
+          api.strokeFromPoints(strokeRef.current, {
+            color: brushColor, width: strokeWidthRef.current || brushWidth, type: brushType,
+          });
         }
-        handStrokeRef.current = [];
-        handSmoothRef.current = null;
+        strokeRef.current = [];
+        smoothRef.current = null;
         return;
       }
-      const host = canvas.getElement()?.parentElement?.parentElement;
-      const scrollTop = host?.scrollTop || 0;
-      const raw = {
-        x: (1 - handPositionRef.current.x) * canvas.width, // огледално, като в Solo
-        y: handPositionRef.current.y * (host?.clientHeight || canvas.height) + scrollTop,
-      };
-      // EMA изглаждане срещу треперене
-      const s = handSmoothRef.current;
-      const pt = s ? { x: s.x + (raw.x - s.x) * 0.35, y: s.y + (raw.y - s.y) * 0.35 } : raw;
-      handSmoothRef.current = pt;
-      handStrokeRef.current.push([Math.round(pt.x), Math.round(pt.y)]);
+      const raw = canvasPointFromNorm(nx, ny);
+      if (!raw) return;
+      const s = smoothRef.current;
+      const pt = s && handSmooth ? { x: s.x + (raw.x - s.x) * 0.35, y: s.y + (raw.y - s.y) * 0.35 } : raw;
+      smoothRef.current = pt;
+      strokeWidthRef.current = width;
+      strokeRef.current.push([Math.round(pt.x), Math.round(pt.y)]);
     }, 40);
     return () => clearInterval(id);
-  }, [handOn, tool, brushColor, brushWidth, brushType, gestureRef, handPositionRef]);
+  }, [
+    liveEnabled, tool, brushColor, brushWidth, brushType, handSmooth,
+    gestureRef, handPositionRef, handLandmarksBufRef, handStampRef,
+    getAudioData, canvasPointFromNorm,
+  ]);
+  const strokeWidthRef = useRef(brushWidth);
+
+  // ── Гласови команди
+  const handleVoiceCommand = useCallback((transcript) => {
+    const cmd = parseWebforgeCommand(transcript);
+    if (!cmd) return;
+    switch (cmd.type) {
+      case 'tool': handleToolClickRef.current?.(cmd.value); showToast(`🎙 ${cmd.value}`); break;
+      case 'brush': pickBrushRef.current?.(cmd.value); showToast(`🎙 ${cmd.value}`); break;
+      case 'color': setBrushColor(cmd.value); setEmotionColor(false); showToast(`🎙 ${cmd.name}`); break;
+      case 'emotionColor': setEmotionColor((v) => !v); showToast('🎙 Emotion colour'); break;
+      case 'text': placeAtCenterRef.current?.((x, y) => makeText(x, y, cmd.value, 'body')); showToast(`🎙 “${cmd.value}”`); break;
+      case 'addPage': addPageRef.current?.(); showToast('🎙 New page'); break;
+      case 'nextPage': stepPageRef.current?.(1); break;
+      case 'prevPage': stepPageRef.current?.(-1); break;
+      case 'generate': generateRef.current?.(); showToast('🎙 Generating…'); break;
+      case 'analyze': analyzeRef.current?.(); break;
+      case 'publish': publishRef.current?.(); break;
+      case 'download': downloadRef.current?.(); break;
+      case 'clear': canvasApiRef.current?.clear(); showToast('🎙 Cleared'); break;
+      case 'undo': canvasApiRef.current?.undo(); break;
+      case 'redo': canvasApiRef.current?.redo(); break;
+      case 'extend': canvasApiRef.current?.growPage(); showToast('🎙 Page extended'); break;
+      case 'size': setBrushWidth((w) => Math.max(1, Math.min(40, w + cmd.value))); break;
+      default: break;
+    }
+  }, []);
+  const { supported: voiceSupported } = useSpeechRecognition(voiceCommandsOn, handleVoiceCommand);
 
   // ── New project
   const handleNewProject = () => {
@@ -456,13 +637,17 @@ export function WebForge({ navigate }) {
         setTool('DRAW');
         return;
       case 'HAND':
-        setHandOn(true);
-        setTool('HAND');
+      case 'VOICE':
+        if (!liveEnabled) toggleLive();
+        setTool(id);
         return;
       default:
         setTool(id);
     }
   };
+
+  // Гласовите команди викат актуалните handler-и през тези мостове
+  handleToolClickRef.current = handleToolClick;
 
   // ── ЕДИН източник на истина за режима на платното. Преди това drawing mode
   // се включваше само в handleToolClick, а бутонът 🖌 само отваряше popover-а
@@ -485,13 +670,25 @@ export function WebForge({ navigate }) {
     setBrushType(id);
     setTool(id === 'eraser' ? 'ERASER' : 'DRAW');
   };
+  pickBrushRef.current = pickBrush;
+  placeAtCenterRef.current = placeAtCenter;
 
-  // ── Клавишни комбинации
+  // ── Клавишни комбинации + скриване на панелите
   useEffect(() => {
     const onKey = (e) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const ae = document.activeElement;
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      if (e.key === 'Escape') { closePopovers(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '[') {
+        e.preventDefault();
+        setToolbarOpen((v) => {
+          try { localStorage.setItem('webforge-toolbar', v ? 'closed' : 'open'); } catch { /* ignore */ }
+          return !v;
+        });
+        return;
+      }
+      if (e.key === 'Tab') { e.preventDefault(); closePopovers(); return; }
       const next = SHORTCUTS[e.key.toLowerCase()];
       if (next) {
         e.preventDefault();
@@ -501,7 +698,7 @@ export function WebForge({ navigate }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brushType, brushColor, brushWidth]);
+  }, [brushType, brushColor, brushWidth, closePopovers]);
 
   const applyColor = (color) => {
     setBrushColor(color);
@@ -593,13 +790,21 @@ export function WebForge({ navigate }) {
         image: payload.image,
         stylePreset,
         pages: pagePayload,
+        palette,
       });
+      // Детерминистична гаранция: точните hex стойности влизат в CSS-а, дори
+      // ако моделът се е отклонил от палитрата.
+      const withPalette = (result.files || []).map((f) =>
+        f.path === 'frontend/styles.css'
+          ? { ...f, content: injectPaletteVars(f.content, palette) }
+          : f
+      );
       setProjectId(result.projectId);
-      setFiles(result.files);
+      setFiles(withPalette);
       setHasBackend(result.hasBackend);
       setDeployment(null);
       setPublishedUrl(null);
-      showToast(`✓ Website generated — ${result.files.length} files`);
+      showToast(`✓ Website generated — ${withPalette.length} files`);
     } catch (e) {
       setErrorBanner({ msg: aiErrorMessage(e, 'Generation'), retry: 'generate' });
     }
@@ -643,6 +848,32 @@ export function WebForge({ navigate }) {
     setFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content } : f)));
   };
 
+  // ── Визуално редактиране на генерирания сайт.
+  // Preview-то е annotate-нат (data-wf-id) вариант на файла; тук прилагаме
+  // промяната върху ИСТИНСКИЯ файл, като първо го маркираме с тези же id-та.
+  const editHtmlFile = useCallback((path, fn) => {
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.path !== path) return f;
+        const annotated = f.content.includes('data-wf-id') ? f.content : annotate(f.content);
+        return { ...f, content: fn(annotated) };
+      })
+    );
+  }, []);
+
+  const handleTextEdit = useCallback(
+    (path, id, text) => editHtmlFile(path, (html) => applyTextEdit(html, id, text)),
+    [editHtmlFile]
+  );
+  const handleStyleEdit = useCallback(
+    (path, id, style) => editHtmlFile(path, (html) => applyStyleEdit(html, id, style)),
+    [editHtmlFile]
+  );
+  const handleDeleteElement = useCallback(
+    (path, id) => editHtmlFile(path, (html) => applyDelete(html, id)),
+    [editHtmlFile]
+  );
+
   // ── Deploy
   const handleDeployDocker = async () => {
     setDeployBusy(true);
@@ -667,6 +898,12 @@ export function WebForge({ navigate }) {
     setDeployment(null);
   };
 
+  // Маркерите на визуалния редактор не бива да излизат навън
+  const cleanFiles = useCallback(
+    () => files.map((f) => (f.path.endsWith('.html') ? { ...f, content: stripAnnotations(f.content) } : f)),
+    [files]
+  );
+
   // ZIP-ът се сглобява в браузъра → работи и без Node сървър
   const handleDownload = async () => {
     if (!files.length) {
@@ -674,7 +911,7 @@ export function WebForge({ navigate }) {
       return;
     }
     try {
-      await downloadProjectZip(files, projectName);
+      await downloadProjectZip(cleanFiles(), projectName);
       showToast('✓ Project downloaded');
     } catch (e) {
       showToast('Download failed — ' + e.message);
@@ -684,7 +921,7 @@ export function WebForge({ navigate }) {
   // Публикуване в Supabase Storage → истински споделим URL
   const handlePublish = async () => {
     try {
-      const { url } = await publisher.publish(projectId || 'site', files, projectName);
+      const { url } = await publisher.publish(projectId || 'site', cleanFiles(), projectName);
       setPublishedUrl(url);
       showToast('✓ Published');
     } catch (e) {
@@ -692,8 +929,14 @@ export function WebForge({ navigate }) {
     }
   };
 
+  generateRef.current = handleGenerate;
+  analyzeRef.current = runAnalyze;
+  publishRef.current = handlePublish;
+  downloadRef.current = handleDownload;
+
   return (
-    <div className="h-full w-full bg-ink flex flex-col overflow-hidden">
+    // `relative` дава контекст на докирания Live State панел (absolute)
+    <div className="relative h-full w-full bg-ink flex flex-col overflow-hidden">
       <MobileNotice label="WebForge is built for desktop — draw layouts with a mouse on a wide screen" />
       {/* ── HEADER ── */}
       <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-ink-line bg-ink-soft/50">
@@ -727,6 +970,46 @@ export function WebForge({ navigate }) {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Камера + микрофон (за пръст/глас/емоция) */}
+          <button
+            onClick={toggleLive}
+            title="Camera + microphone — draw with your finger, your voice and your mood"
+            className={`w-8 h-8 rounded-lg border text-sm transition ${
+              liveEnabled
+                ? 'border-accent-cyan bg-accent-cyan/15 text-accent-cyan'
+                : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
+            }`}
+          >
+            👁
+          </button>
+          <button
+            onClick={() => {
+              if (!voiceCommandsOn && !voiceSupported) {
+                showToast('Voice commands need Chrome or Edge');
+                return;
+              }
+              setVoiceCommandsOn((v) => !v);
+            }}
+            title={`Voice commands — try: ${VOICE_EXAMPLES.slice(0, 4).join(', ')}`}
+            className={`w-8 h-8 rounded-lg border text-sm transition ${
+              voiceCommandsOn
+                ? 'border-accent-violet bg-accent-violet/15 text-accent-violet'
+                : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
+            }`}
+          >
+            🎙
+          </button>
+          <button
+            onClick={() => setEmotionColor((v) => !v)}
+            title="Emotion colour — the brush colour follows your mood"
+            className={`w-8 h-8 rounded-lg border text-sm transition ${
+              emotionColor
+                ? 'border-yellow-400 bg-yellow-400/15 text-yellow-300'
+                : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
+            }`}
+          >
+            🎭
+          </button>
           <button
             onClick={() => setShowBook(true)}
             title="Field guide"
@@ -788,7 +1071,36 @@ export function WebForge({ navigate }) {
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT: toolbar + canvas */}
         <div ref={leftPaneRef} className="flex overflow-hidden">
-          <aside className="w-[56px] shrink-0 border-r border-ink-line bg-ink-soft/50 flex flex-col items-center py-2 gap-1 overflow-y-auto">
+          {/* Свит тулбар — само тънка лента, платното получава мястото */}
+          {!toolbarOpen && (
+            <aside className="w-[22px] shrink-0 border-r border-ink-line bg-ink-soft/50 flex flex-col items-center py-2">
+              <button
+                onClick={() => {
+                  setToolbarOpen(true);
+                  try { localStorage.setItem('webforge-toolbar', 'open'); } catch { /* ignore */ }
+                }}
+                title="Show tools ( [ )"
+                className="text-gray-500 hover:text-white transition text-xs"
+              >
+                ›
+              </button>
+              <span className="mt-2 text-[9px] text-gray-600 [writing-mode:vertical-rl]">tools</span>
+            </aside>
+          )}
+          <aside
+            className={`${toolbarOpen ? 'w-[56px]' : 'hidden'} shrink-0 border-r border-ink-line bg-ink-soft/50 flex flex-col items-center py-2 gap-1 overflow-y-auto`}
+          >
+            <button
+              onClick={() => {
+                setToolbarOpen(false);
+                closePopovers();
+                try { localStorage.setItem('webforge-toolbar', 'closed'); } catch { /* ignore */ }
+              }}
+              title="Hide tools ( [ ) — frees up canvas space"
+              className="w-10 h-6 rounded text-gray-500 hover:text-white hover:bg-ink-line/50 transition text-xs"
+            >
+              ‹
+            </button>
             {TOOLS.map((t) => (
               <button
                 key={t.id}
@@ -918,15 +1230,28 @@ export function WebForge({ navigate }) {
               </button>
             </div>
 
-            {/* Скрито видео за рисуване с ръка */}
-            {handOn && (
-              <>
-                <VideoProcessor ref={videoRef} detect={detect} active={handOn} />
-                <div className="absolute left-3 bottom-3 z-20 rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300">
-                  🖐 Hand draw — close your hand to draw
-                  <button onClick={() => { setHandOn(false); setTool('SELECT'); }} className="ml-2 text-gray-500 hover:text-red-400">✕</button>
-                </div>
-              </>
+            {/* HUD за рисуване с пръст / глас */}
+            {liveEnabled && LIVE_TOOLS.has(tool) && (
+              <div className="absolute left-3 bottom-3 z-20 flex items-center gap-2 rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300">
+                {tool === 'VOICE' ? (
+                  <span>{handDrawing ? '🗣 painting — louder = thicker' : '🤫 speak to paint'}</span>
+                ) : (
+                  <span>{handDrawing ? '✊ drawing' : '✋ paused — close your hand'}</span>
+                )}
+                <button
+                  onClick={() => setHandSmooth((s) => !s)}
+                  title="Smoothing — removes hand tremble"
+                  className={handSmooth ? 'text-accent-cyan' : 'text-gray-600 hover:text-gray-300'}
+                >
+                  ⚡
+                </button>
+                <button onClick={() => setTool('SELECT')} className="text-gray-500 hover:text-red-400">✕</button>
+              </div>
+            )}
+
+            {/* Клик навън затваря popover-ите (не пречи на рисуването) */}
+            {(showColorPopover || showBrushPopover || showComponentPopover) && (
+              <div className="absolute inset-0 z-20" onClick={closePopovers} />
             )}
 
             {/* Color popover */}
@@ -1036,6 +1361,13 @@ export function WebForge({ navigate }) {
             publishedUrl={publishedUrl}
             showGuides={showGuides}
             onToggleGuides={() => setShowGuides((g) => !g)}
+            palette={palette}
+            paletteAuto={paletteAuto}
+            onPaletteChange={updatePalette}
+            onRereadPalette={rereadPalette}
+            onTextEdit={handleTextEdit}
+            onStyleEdit={handleStyleEdit}
+            onDeleteElement={handleDeleteElement}
             components={components}
             summary={summary}
             analyzing={wf.analyzing}
@@ -1085,6 +1417,32 @@ export function WebForge({ navigate }) {
                     : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── Камера/микрофон + подвижен HUD с емоция и waveform ── */}
+      <VideoProcessor ref={videoRef} detect={detect} active={liveEnabled} />
+      {liveEnabled && (
+        <EmotionSidebar
+          emotion={emotion}
+          gesture={gesture}
+          videoRef={videoRef}
+          emotionHistory={[]}
+          getWaveform={getWaveform}
+          visible={sidebarVisible}
+          onToggle={() => setSidebarVisible((v) => !v)}
+          landmarksBufRef={landmarksBufRef}
+          landmarkStampRef={landmarkStampRef}
+          position={sidebarPos}
+          onDragTo={setSidebarPos}
+          onDock={() => setSidebarPos(null)}
+        />
+      )}
+
+      {/* Подсказка за гласовите команди */}
+      {voiceCommandsOn && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 rounded-full bg-ink-soft/85 border border-accent-violet/40 px-4 py-1.5 text-[11px] text-gray-300 backdrop-blur">
+          🎙 Listening — try “{VOICE_EXAMPLES[0]}”, “{VOICE_EXAMPLES[7]}”, “new page”, “generate”
         </div>
       )}
 

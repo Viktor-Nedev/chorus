@@ -109,11 +109,29 @@ async function callGemini(parts: unknown[], key: string) {
 }
 
 const BLUEPRINT_RULE = `THE SKETCH IS A BLUEPRINT, NOT A DESIGN — MOST IMPORTANT RULE:
-Frame outlines, their colors, type labels ("hero", "footer"), freehand strokes and spray
-marks are DRAFTING ANNOTATIONS marking WHERE things go. They must NEVER appear in the
-output — no colored borders around sections, no outlined boxes, no visible sketch strokes,
-no "IMG" placeholder tiles with crosses. Image placeholders become real visual treatments.
-Button colors the user explicitly chose (buttonColor/buttonTextColor) ARE intentional.`;
+Frame outlines, type labels ("hero", "footer"), freehand strokes and spray marks are
+DRAFTING ANNOTATIONS marking WHERE things go. They must NEVER appear in the output — no
+outlined boxes around sections, no visible sketch strokes, no "IMG" placeholder tiles with
+crosses. Image placeholders become real visual treatments.
+
+COLOUR — MATCH WHAT THE USER DREW: colours chosen explicitly (buttonColor /
+buttonTextColor, fills set on a block) ARE intentional and must be honoured. Only the
+DEFAULT per-type frame outline colours are meaningless drafting hints.`;
+
+function paletteBlock(palette?: Record<string, string>) {
+  if (!palette) return '';
+  return `SITE PALETTE — USE THESE EXACT HEX VALUES, DO NOT INVENT OTHER BRAND COLOURS:
+  --wf-primary: ${palette.primary}   (buttons, links, key accents)
+  --wf-accent:  ${palette.accent}    (secondary highlights)
+  --wf-bg:      ${palette.bg}        (page background)
+  --wf-surface: ${palette.surface}   (cards, raised panels)
+  --wf-text:    ${palette.text}      (body copy)
+  --wf-muted:   ${palette.muted}     (captions, borders)
+Declare them in :root as CSS custom properties and reference them via var(--wf-*).
+They come from the user's own drawing — matching them is REQUIRED.
+
+`;
+}
 
 function analyzePrompt(p: Record<string, unknown>) {
   const size = p.canvasSize as { width?: number; height?: number } | undefined;
@@ -159,7 +177,7 @@ Every page must include the SAME navigation, linking to the real file names abov
   : `Raw drawn objects — positions as canvas percentages (xPct/yPct/wPct/hPct):
 ${compact(p.objects, 8000)}`}
 
-${BLUEPRINT_RULE}
+${paletteBlock(p.palette as Record<string, string> | undefined)}${BLUEPRINT_RULE}
 
 FOLLOW THE STRUCTURE, THEN IMPROVE IT:
 - Preserve the blueprint's block order, side-by-side relationships and rough proportions,

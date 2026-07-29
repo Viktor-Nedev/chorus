@@ -1,9 +1,21 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { FRAME_TYPES } from './tools';
+import { VisualInspector, useVisualEditorMessages } from './VisualEditor';
+import { annotate, EDITOR_SCRIPT } from '../../engine/htmlEdit';
+import { PALETTE_KEYS, contrastRatio } from '../../engine/sitePalette';
 
 // Дясната половина на WebForge: всичко освен рисуването.
-const TABS = ['Preview', 'HTML', 'CSS', 'React', 'Backend', 'Recognized', 'Chat', 'Props', 'Deploy'];
+const TABS = ['Preview', 'Design', 'HTML', 'CSS', 'React', 'Backend', 'Recognized', 'Chat', 'Props', 'Deploy'];
+
+const PALETTE_LABELS = {
+  primary: 'Primary — buttons & links',
+  accent: 'Accent — highlights',
+  bg: 'Background',
+  surface: 'Surface — cards',
+  text: 'Text',
+  muted: 'Muted — captions',
+};
 
 const DEVICES = [
   { id: 'mobile', label: '📱', title: 'Mobile 390px', width: 390 },
@@ -27,18 +39,21 @@ const TYPE_ICONS = {
 // подменяме го с in-memory реализация, за да работят генерираните сайтове.
 const STORAGE_SHIM = `<script>try{window.localStorage.length}catch(e){(function(){var m={};var shim={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null}};Object.defineProperty(shim,'length',{get:function(){return Object.keys(m).length}});Object.defineProperty(window,'localStorage',{value:shim});Object.defineProperty(window,'sessionStorage',{value:shim});})()}</script>`;
 
-// Сглобява self-contained HTML за iframe srcdoc: инлайнва styles.css и app.js
-function buildPreviewHtml(files) {
+// Сглобява self-contained HTML за iframe srcdoc: инлайнва styles.css и app.js.
+// `pagePath` избира кой HTML файл да се покаже (multi-page).
+function buildPreviewHtml(files, pagePath = 'frontend/index.html', editMode = false) {
   const get = (p) => files.find((f) => f.path === p)?.content ?? '';
-  let html = get('frontend/index.html');
+  let html = get(pagePath);
   if (!html) return null;
+  if (editMode) html = annotate(html);
   const css = get('frontend/styles.css');
   const js = get('frontend/app.js');
   html = html.replace(/<link[^>]*styles\.css[^>]*\/?>(<\/link>)?/i, `<style>\n${css}\n</style>`);
   html = html.replace(/<script[^>]*src=["'][^"']*app\.js["'][^>]*>\s*<\/script>/i, `<script>\n${js}\n</script>`);
   // Shim-ът трябва да е ПРЕДИ кода на сайта
-  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => m + STORAGE_SHIM);
-  else html = STORAGE_SHIM + html;
+  const head = STORAGE_SHIM + (editMode ? EDITOR_SCRIPT : '');
+  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => m + head);
+  else html = head + html;
   return html;
 }
 
@@ -60,6 +75,14 @@ export function RightPanel({
   publishedUrl,
   showGuides,
   onToggleGuides,
+  palette,
+  paletteAuto,
+  onPaletteChange,
+  onRereadPalette,
+  htmlPages,
+  onTextEdit,
+  onStyleEdit,
+  onDeleteElement,
   components,
   summary,
   analyzing,
@@ -83,7 +106,38 @@ export function RightPanel({
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef(null);
 
-  const generatedHtml = useMemo(() => buildPreviewHtml(files), [files]);
+  // Визуално редактиране + избор на страница за preview
+  const [editMode, setEditMode] = useState(false);
+  const [selection, setSelection] = useState(null);
+  const [previewPage, setPreviewPage] = useState('frontend/index.html');
+
+  // Кои HTML страници има проектът
+  const pageFiles = useMemo(
+    () => (htmlPages?.length ? htmlPages : files.filter((f) => /^frontend\/.+\.html$/.test(f.path)).map((f) => f.path)),
+    [htmlPages, files]
+  );
+  useEffect(() => {
+    if (pageFiles.length && !pageFiles.includes(previewPage)) setPreviewPage(pageFiles[0]);
+  }, [pageFiles, previewPage]);
+
+  const generatedHtml = useMemo(
+    () => buildPreviewHtml(files, previewPage, editMode),
+    [files, previewPage, editMode]
+  );
+
+  useVisualEditorMessages({
+    active: editMode,
+    onSelect: setSelection,
+    onText: (id, text) => onTextEdit?.(previewPage, id, text),
+  });
+
+  // Изход от Edit режим при смяна на таба/режима
+  useEffect(() => {
+    if (previewMode !== 'generated' || tab !== 'Preview') {
+      setEditMode(false);
+      setSelection(null);
+    }
+  }, [previewMode, tab]);
 
   // Първата генерация превключва на Generated + Preview таба
   const hadFiles = useRef(false);
@@ -170,6 +224,31 @@ export function RightPanel({
             >
               ⚡ Generated
             </button>
+            {/* Страница за preview (multi-page) */}
+            {previewMode === 'generated' && pageFiles.length > 1 && (
+              <select
+                value={previewPage}
+                onChange={(e) => setPreviewPage(e.target.value)}
+                title="Which page to preview / edit"
+                className="ml-1 h-6 rounded bg-ink border border-ink-line px-1 text-[10px] text-gray-300 focus:outline-none"
+              >
+                {pageFiles.map((p) => (
+                  <option key={p} value={p}>{p.replace('frontend/', '')}</option>
+                ))}
+              </select>
+            )}
+            {/* Визуално редактиране */}
+            {previewMode === 'generated' && (
+              <button
+                onClick={() => { setEditMode((v) => !v); setSelection(null); }}
+                title="Edit mode — click elements in the page to change text, colours and size"
+                className={`ml-1 px-2 py-1 text-[10px] rounded transition ${
+                  editMode ? 'bg-accent-violet/25 text-white border border-accent-violet/60' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                ✎ Edit
+              </button>
+            )}
             <span className="w-px h-4 bg-ink-line mx-1" />
             {DEVICES.map((d) => (
               <button
@@ -227,12 +306,100 @@ export function RightPanel({
                 style={deviceDef.width ? { width: deviceDef.width, height: '100%' } : {}}
               >
                 <iframe
-                  key={`${previewMode}-${previewKey}`}
+                  key={`${previewMode}-${previewKey}-${previewPage}-${editMode}`}
                   title="preview"
                   srcDoc={activePreviewHtml}
                   sandbox="allow-scripts allow-forms"
                   className="w-full h-full bg-white"
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Инспектор за визуалното редактиране */}
+          {editMode && (
+            <VisualInspector
+              selection={selection}
+              onText={(id, text) => onTextEdit?.(previewPage, id, text)}
+              onStyle={(id, style) => onStyleEdit?.(previewPage, id, style)}
+              onDelete={(id) => { onDeleteElement?.(previewPage, id); setSelection(null); }}
+              onClose={() => { setEditMode(false); setSelection(null); }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── DESIGN (палитра на сайта) ── */}
+      {tab === 'Design' && (
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="max-w-md mx-auto space-y-4">
+            <div>
+              <h3 className="font-display font-bold text-white text-lg">🎨 Site palette</h3>
+              <p className="text-[11px] text-gray-500 mt-1">
+                These exact colours are injected into the generated CSS as
+                <code className="mx-1 text-accent-cyan">var(--wf-*)</code>, so the site matches
+                what you drew. {paletteAuto ? 'Read automatically from your sketch.' : 'Manually set.'}
+              </p>
+            </div>
+
+            <button
+              onClick={onRereadPalette}
+              className="w-full rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
+            >
+              ↻ Re-read colours from my sketch
+            </button>
+
+            <div className="space-y-2">
+              {PALETTE_KEYS.map((k) => (
+                <div key={k} className="flex items-center gap-3 rounded-lg border border-ink-line bg-ink p-2.5">
+                  <input
+                    type="color"
+                    value={palette?.[k] || '#000000'}
+                    onChange={(e) => onPaletteChange?.({ [k]: e.target.value })}
+                    className="w-9 h-9 bg-transparent cursor-pointer shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-white">{PALETTE_LABELS[k]}</div>
+                    <div className="text-[10px] text-gray-500 font-mono">{palette?.[k]}</div>
+                  </div>
+                  <input
+                    value={palette?.[k] || ''}
+                    onChange={(e) => onPaletteChange?.({ [k]: e.target.value })}
+                    className="w-20 rounded bg-ink-soft border border-ink-line px-2 py-1 text-[11px] text-gray-300 font-mono focus:outline-none focus:border-accent-violet"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Контрастна проверка */}
+            {palette && (
+              <div className="rounded-lg border border-ink-line bg-ink p-3 space-y-1.5">
+                <div className="text-[10px] uppercase tracking-[0.15em] text-gray-500">Readability</div>
+                {[['text', 'bg', 4.5], ['muted', 'bg', 3]].map(([fg, bg, min]) => {
+                  const ratio = contrastRatio(palette[fg], palette[bg]);
+                  const ok = ratio >= min;
+                  return (
+                    <div key={fg} className="flex items-center justify-between text-[11px]">
+                      <span className="text-gray-400">{fg} on {bg}</span>
+                      <span className={ok ? 'text-emerald-400' : 'text-yellow-400'}>
+                        {ratio.toFixed(1)}:1 {ok ? '✓' : `· below ${min}:1`}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div
+                  className="mt-2 rounded p-2.5 text-xs"
+                  style={{ background: palette.bg, color: palette.text }}
+                >
+                  Sample heading
+                  <span className="ml-2" style={{ color: palette.muted }}>and a caption</span>
+                  <span
+                    className="ml-2 inline-block rounded px-2 py-0.5"
+                    style={{ background: palette.primary, color: palette.bg }}
+                  >
+                    Button
+                  </span>
+                </div>
               </div>
             )}
           </div>

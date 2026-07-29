@@ -208,12 +208,15 @@ export const WEBFORGE_PAGES = [
     ],
   },
   {
-    n: '02', title: 'Brushes & hand', icon: '🖌',
+    n: '02', title: 'Brushes & body', icon: '🖌',
     items: [
       ['D · Brushes', 'Pen, pencil, marker, highlighter, calligraphy, spray and neon.'],
-      ['E · Eraser', 'Rubs out freehand strokes (it really erases, it does not paint over).'],
-      ['G · Fill', 'Click a block to colour it; click empty space for the page background.'],
-      ['🖐 Hand draw', 'Close your hand to draw in the air, open your palm to pause.'],
+      ['E · Eraser · G · Fill', 'The eraser really erases; fill colours a block (or the page background).'],
+      ['[ · Hide tools', 'Collapses the toolbar so the canvas gets the space. Esc closes popovers.'],
+      ['👁 · 🖐 Finger draw', 'Turn on the camera, point with your index finger; closed hand draws, open palm pauses. ⚡ smooths tremble.'],
+      ['🗣 Voice paint', 'Aim with your finger and speak — the louder you are, the thicker the stroke.'],
+      ['🎙 Commands · 🎭 Mood', '“navbar”, “red”, “new page”, “generate”… and the brush colour can follow your emotion.'],
+      ['Movable camera', 'Drag the Live State panel anywhere; ⛶ detaches it, ⤢ docks it back.'],
     ],
   },
   {
@@ -226,7 +229,16 @@ export const WEBFORGE_PAGES = [
     ],
   },
   {
-    n: '04', title: 'Generate & share', icon: '⚡',
+    n: '04', title: 'Colours & editing', icon: '🎨',
+    items: [
+      ['Design tab', 'Your sketch’s colours become the site palette — the exact hex values land in the CSS.'],
+      ['↻ Re-read', 'Re-reads the colours from the drawing; edit any token by hand to take over.'],
+      ['Readability check', 'Contrast is verified (and auto-fixed) so the result never turns unreadable.'],
+      ['✎ Edit mode', 'In the generated preview, click any element to retype its text or change colour, size, padding.'],
+    ],
+  },
+  {
+    n: '05', title: 'Generate & share', icon: '⚡',
     items: [
       ['🔍 Analyze', 'The AI names what it recognised and lists the improvements it will make.'],
       ['⚡ Generate', 'Builds a real, responsive, accessible site from your blueprint.'],

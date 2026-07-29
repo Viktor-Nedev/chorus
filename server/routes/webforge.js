@@ -102,10 +102,10 @@ router.post('/analyze', async (req, res) => {
 // ── POST /generate — пълна генерация на проект
 router.post('/generate', async (req, res) => {
   try {
-    const { projectId: incoming, projectName, objects, components, image, stylePreset, pages } = req.body || {};
+    const { projectId: incoming, projectName, objects, components, image, stylePreset, pages, palette } = req.body || {};
     const projectId = SAFE_ID.test(incoming || '') ? incoming : nanoid(10);
 
-    const result = await generateProject({ projectName, objects, components, image, stylePreset, pages });
+    const result = await generateProject({ projectName, objects, components, image, stylePreset, pages, palette });
     if (!Array.isArray(result.files) || result.files.length === 0) {
       return res.status(500).json({ error: 'AI returned no files' });
     }

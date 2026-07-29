@@ -151,8 +151,22 @@ Return ONLY JSON:
 }
 
 // ── ГЕНЕРАЦИЯ: компоненти + обекти → пълен проект (файлове)
-async function generateProject({ projectName, objects, components, image, stylePreset, pages }) {
+async function generateProject({ projectName, objects, components, image, stylePreset, pages, palette }) {
   const multi = Array.isArray(pages) && pages.length > 1;
+  const paletteBlock = palette
+    ? `SITE PALETTE — USE THESE EXACT HEX VALUES, DO NOT INVENT OTHER BRAND COLOURS:
+  --wf-primary: ${palette.primary}   (buttons, links, key accents)
+  --wf-accent:  ${palette.accent}    (secondary highlights)
+  --wf-bg:      ${palette.bg}        (page background)
+  --wf-surface: ${palette.surface}   (cards, raised panels)
+  --wf-text:    ${palette.text}      (body copy)
+  --wf-muted:   ${palette.muted}     (captions, borders)
+Declare them as CSS custom properties in :root and reference them via var(--wf-*)
+throughout. These come from the user's own drawing — matching them is REQUIRED.
+You may add neutral shades (white/greys) and transparency for depth.
+
+`
+    : '';
   const parts = [];
   if (image) parts.push(dataUrlToInlinePart(image));
   parts.push({
@@ -172,15 +186,21 @@ names above (href="about.html" etc.), and the current page marked as active.`
 plus colors, text and user annotations:
 ${compactJson(objects, 8000)}`}
 
-THE SKETCH IS A BLUEPRINT, NOT A DESIGN — THIS IS THE MOST IMPORTANT RULE:
-- Frame outlines, their colors, type labels ("hero", "footer"), freehand strokes and
-  spray marks are DRAFTING ANNOTATIONS marking WHERE things go. They must NEVER appear
-  in the output — no colored borders around sections, no outlined boxes, no visible
-  strokes, no "IMG" placeholder tiles with crosses.
+${paletteBlock}THE SKETCH IS A BLUEPRINT, NOT A DESIGN — THIS IS THE MOST IMPORTANT RULE:
+- Frame outlines, type labels ("hero", "footer"), freehand strokes and spray marks are
+  DRAFTING ANNOTATIONS marking WHERE things go. They must NEVER appear in the output —
+  no outlined boxes around sections, no visible sketch strokes, no "IMG" placeholder
+  tiles with crosses.
 - Image placeholders become real visual treatments (tasteful CSS gradient/solid blocks
   with proper aspect-ratio, or an <img> with a descriptive alt if a real source is implied).
-- The button colors the user explicitly chose (buttonColor/buttonTextColor) ARE intentional
-  — honour those. Frame stroke colors are NOT.
+
+COLOUR — MATCH WHAT THE USER DREW:
+- The SITE PALETTE above is authoritative: the finished site must visibly use those colours.
+- Colours the user chose explicitly ARE intentional and must be honoured: buttonColor /
+  buttonTextColor on buttons, and any fill they set on a block (map it to the nearest
+  palette token, or use it directly for that element).
+- Only the DEFAULT frame outline colours (the per-type guide strokes) are meaningless
+  drafting hints — ignore those, never paint them.
 
 FOLLOW THE STRUCTURE, THEN IMPROVE IT:
 - Preserve the blueprint's structure: top-to-bottom order of blocks, what sits side by
