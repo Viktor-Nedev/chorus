@@ -194,25 +194,44 @@ export const WEBFORGE_PAGES = [
   {
     kind: 'cover', title: 'WEBFORGE', subtitle: 'Field Guide',
     body: [
-      'Draw a website — sketch boxes on a canvas and turn them into a real page.',
-      'Instant wireframe preview, then generate with AI.',
+      'Sketch a website — your drawing is a blueprint, not the design.',
+      'The AI reads the structure, then builds a polished site from it.',
     ],
   },
   {
     n: '01', title: 'Draw the layout', icon: '✏️',
     items: [
-      ['Frames', 'Draw boxes for headers, sections, forms and more.'],
-      ['Right panel', 'Tabs for content, style, backend and preview.'],
-      ['Instant wireframe', 'A deterministic preview updates as you draw.'],
-      ['Autosave', 'Your project is kept in local storage.'],
+      ['▭ Frame (F)', 'Drag a block, then pick what it is — navbar, hero, card, footer, form, backend.'],
+      ['T · 🖼 · ⏺ · ☰', 'Text, image placeholder, button and navbar (B places a button).'],
+      ['◈ Components', 'Modal, table, chart, calendar, gallery and more.'],
+      ['Blueprint, not design', 'Frame outlines and labels are guides — they never show up in the built site.'],
     ],
   },
   {
-    n: '02', title: 'Generate & export', icon: '⚙',
+    n: '02', title: 'Brushes & hand', icon: '🖌',
     items: [
-      ['AI generate', 'Turn the sketch into a real HTML/CSS page.'],
-      ['Preview', 'See the live result in a sandboxed frame.'],
-      ['Export', 'Download the generated site.'],
+      ['D · Brushes', 'Pen, pencil, marker, highlighter, calligraphy, spray and neon.'],
+      ['E · Eraser', 'Rubs out freehand strokes (it really erases, it does not paint over).'],
+      ['G · Fill', 'Click a block to colour it; click empty space for the page background.'],
+      ['🖐 Hand draw', 'Close your hand to draw in the air, open your palm to pause.'],
+    ],
+  },
+  {
+    n: '03', title: 'Pages & length', icon: '📄',
+    items: [
+      ['Page tabs', 'Every page is its own canvas and its own HTML file.'],
+      ['Linked navigation', 'Home → index.html, About → about.html — the nav is wired automatically.'],
+      ['＋ Extend', 'Make the page longer; the canvas scrolls as the site continues down.'],
+      ['Rename / delete', 'Click the active tab to rename it; ✕ removes a page.'],
+    ],
+  },
+  {
+    n: '04', title: 'Generate & share', icon: '⚡',
+    items: [
+      ['🔍 Analyze', 'The AI names what it recognised and lists the improvements it will make.'],
+      ['⚡ Generate', 'Builds a real, responsive, accessible site from your blueprint.'],
+      ['🌍 Publish', 'Uploads it to public hosting and gives you a shareable link.'],
+      ['📥 Download ZIP', 'The whole project with a README — works with no server at all.'],
     ],
   },
 ];

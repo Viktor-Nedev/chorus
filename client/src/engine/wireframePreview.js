@@ -36,7 +36,7 @@ const posStyle = (o) =>
 // font-size в cqw — мащабира се с ширината на контейнера (container query units)
 const fontCqw = (fontSize, cw) => `${((fontSize / cw) * 100).toFixed(2)}cqw`;
 
-function renderObject(o, cw, ch) {
+function renderObject(o, cw, ch, guides) {
   const type = o.customType || o.type;
 
   // ── Текст
@@ -47,10 +47,13 @@ function renderObject(o, cw, ch) {
 
   // ── Бутон (група rect+text)
   if (type === 'button') {
-    const c = BUTTON_COLORS[o.buttonStyle] || BUTTON_COLORS.primary;
+    const preset = BUTTON_COLORS[o.buttonStyle] || BUTTON_COLORS.primary;
+    // Изричният избор на потребителя бие preset-а
+    const bg = o.buttonColor || preset.bg;
+    const fg = o.buttonTextColor || preset.fg;
     const label = o.children?.find((ch) => ch.text)?.text || 'Button';
     const border = o.buttonStyle === 'ghost' ? 'border:1.5px solid #b3b3bc;' : '';
-    return `<div style="${posStyle(o)}display:flex;align-items:center;justify-content:center;background:${c.bg};color:${c.fg};${border}border-radius:10px;font-size:${fontCqw(15, cw)};font-weight:600;box-shadow:${o.buttonStyle === 'primary' ? '0 2px 8px rgba(108,92,231,0.35)' : 'none'};">${esc(label)}</div>`;
+    return `<div style="${posStyle(o)}display:flex;align-items:center;justify-content:center;background:${esc(bg)};color:${esc(fg)};${border}border-radius:10px;font-size:${fontCqw(15, cw)};font-weight:600;box-shadow:${o.buttonStyle === 'primary' ? '0 2px 8px rgba(108,92,231,0.35)' : 'none'};">${esc(label)}</div>`;
   }
 
   // ── Навигация (група) — лого вляво, елементи вдясно
@@ -90,31 +93,44 @@ function renderObject(o, cw, ch) {
       <div style="height:16cqh;min-height:22px;background:#6c5ce7;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${fontCqw(13, cw)};font-weight:600;">Submit</div></div>`;
   }
 
-  // ── Спрей щрих (група от точки) → мек цветен регион
+  // ── Спрей щрих (група от точки) — чертожна анотация: само в guides режим
   if (type === 'drawing' && o.type === 'group') {
+    if (!guides) return '';
     return `<div style="${posStyle(o)}border-radius:40%;background:${esc(o.stroke || '#9a9aa4')};opacity:0.35;filter:blur(3px);"></div>`;
   }
 
-  // ── Freehand щрих → SVG полилиния
+  // ── Freehand щрих — също чертеж, не дизайн
   if (o.type === 'freehand' && o.polyline?.length > 1) {
+    if (!guides) return '';
     const points = o.polyline.map(([x, y]) => `${x},${y}`).join(' ');
     return `<svg style="position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;" viewBox="0 0 ${cw} ${ch}" preserveAspectRatio="none">
       <polyline points="${points}" fill="none" stroke="${esc(o.stroke || '#55555e')}" stroke-width="${o.strokeWidth || 2}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
 
   // ── Frames (navbar/hero/section/card/footer/sidebar/form/backend/frame)
+  // Без guides рамката е ЧИСТ блок — очертанията и етикетите са чертожни
+  // помощни знаци и не бива да се виждат като част от сайта.
   const tint = FRAME_TINTS[type] || FRAME_TINTS.frame;
+  if (!guides) {
+    const bg = type === 'navbar' || type === 'card' ? '#ffffff' : 'transparent';
+    const shadow = type === 'card' ? 'box-shadow:0 2px 14px rgba(0,0,0,0.07);' : '';
+    return `<div style="${posStyle(o)}background:${bg};border-radius:10px;${shadow}box-sizing:border-box;"></div>`;
+  }
   const dashed = type === 'form' || type === 'backend' ? 'dashed' : 'solid';
   const label = type !== 'frame' ? `<span style="position:absolute;top:4px;left:8px;font-size:${fontCqw(10, cw)};letter-spacing:0.12em;text-transform:uppercase;color:${tint.border};opacity:0.75;font-weight:700;">${type === 'backend' ? '⚡ backend' : esc(type)}</span>` : '';
   return `<div style="${posStyle(o)}border:1.5px ${dashed} ${tint.border};border-radius:10px;background:${tint.bg};box-sizing:border-box;">${label}</div>`;
 }
 
-export function buildWireframeHtml(objects, canvasSize) {
+// opts.guides — показва чертожните помощни знаци (цветни рамки, етикети,
+// щрихи). По подразбиране е ИЗКЛЮЧЕНО: preview-то показва как ще изглежда
+// сайтът, а не чертежа.
+export function buildWireframeHtml(objects, canvasSize, opts = {}) {
   if (!objects?.length) return null;
   const cw = canvasSize?.width || 1200;
   const ch = canvasSize?.height || 800;
+  const guides = !!opts.guides;
 
-  const body = objects.map((o) => renderObject(o, cw, ch)).join('\n');
+  const body = objects.map((o) => renderObject(o, cw, ch, guides)).filter(Boolean).join('\n');
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>

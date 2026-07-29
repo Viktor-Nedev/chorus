@@ -8,6 +8,8 @@ export const CUSTOM_PROPS = [
   'annotation',
   'formFields',
   'buttonStyle',
+  'buttonColor',
+  'buttonTextColor',
   'textRole',
   'navItems',
   'componentKind',
@@ -85,15 +87,19 @@ export function makeImagePlaceholder(left, top, width = 200, height = 140) {
   return group;
 }
 
-export function makeButton(left, top, label = 'Button', style = 'primary') {
-  const colors = {
-    primary: { bg: '#8B7BFA', fg: '#0a0a0f' },
-    secondary: { bg: 'rgba(255,255,255,0.1)', fg: '#F5F5F5' },
-    danger: { bg: '#FF5555', fg: '#0a0a0f' },
-    ghost: { bg: 'transparent', fg: '#D9D9D9' },
-    link: { bg: 'transparent', fg: '#67E8F9' },
-  };
-  const c = colors[style] || colors.primary;
+export const BUTTON_STYLE_COLORS = {
+  primary: { bg: '#8B7BFA', fg: '#0a0a0f' },
+  secondary: { bg: 'rgba(255,255,255,0.1)', fg: '#F5F5F5' },
+  danger: { bg: '#FF5555', fg: '#0a0a0f' },
+  ghost: { bg: 'transparent', fg: '#D9D9D9' },
+  link: { bg: 'transparent', fg: '#67E8F9' },
+};
+
+// buttonColor/buttonTextColor (ако са зададени) имат приоритет над preset-а —
+// потребителят може да избере точния цвят на бутона.
+export function makeButton(left, top, label = 'Button', style = 'primary', buttonColor, buttonTextColor) {
+  const preset = BUTTON_STYLE_COLORS[style] || BUTTON_STYLE_COLORS.primary;
+  const c = { bg: buttonColor || preset.bg, fg: buttonTextColor || preset.fg };
   const width = Math.max(110, label.length * 10 + 40);
   const rect = new Rect({
     left: 0,
@@ -116,8 +122,22 @@ export function makeButton(left, top, label = 'Button', style = 'primary') {
     fontFamily: 'Arial',
   });
   const group = new Group([rect, text], { left, top });
-  group.set({ customType: 'button', buttonStyle: style });
+  group.set({ customType: 'button', buttonStyle: style, buttonColor, buttonTextColor });
   return group;
+}
+
+// Пребоядисва съществуващ бутон на място (rect + label в групата)
+export function applyButtonColors(group, { buttonColor, buttonTextColor, buttonStyle } = {}) {
+  if (!group || typeof group.getObjects !== 'function') return;
+  const style = buttonStyle || group.buttonStyle || 'primary';
+  const preset = BUTTON_STYLE_COLORS[style] || BUTTON_STYLE_COLORS.primary;
+  const bg = buttonColor ?? group.buttonColor ?? preset.bg;
+  const fg = buttonTextColor ?? group.buttonTextColor ?? preset.fg;
+  for (const child of group.getObjects()) {
+    if (child.type === 'rect') child.set({ fill: bg });
+    else if (child.text != null) child.set({ fill: fg });
+  }
+  group.set({ buttonStyle: style, buttonColor: bg, buttonTextColor: fg });
 }
 
 export function makeNav(left, top, items = ['Logo', 'Home', 'About', 'Contact']) {

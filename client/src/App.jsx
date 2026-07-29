@@ -86,8 +86,8 @@ export default function App() {
       {screen === 'profile' && <Profile navigate={navigate} />}
       {screen === 'social' && <Social navigate={navigate} />}
 
-      {/* Глобален радиален nav — само след логин */}
-      {user && <NavOrb navigate={navigate} current={screen} />}
+      {/* Nav launcher — само на началната страница и само след логин */}
+      {user && screen === 'landing' && <NavOrb navigate={navigate} current={screen} />}
 
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />

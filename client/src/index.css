@@ -334,6 +334,16 @@ input[type='color']::-webkit-color-swatch {
 }
 .animate-slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* ─── WebForge: дискретен скролбар на платното ─── */
+.webforge-scroll::-webkit-scrollbar { width: 10px; }
+.webforge-scroll::-webkit-scrollbar-track { background: rgb(13 13 18); }
+.webforge-scroll::-webkit-scrollbar-thumb {
+  background: rgb(45 45 58);
+  border-radius: 5px;
+  border: 2px solid rgb(13 13 18);
+}
+.webforge-scroll::-webkit-scrollbar-thumb:hover { background: rgb(70 70 88); }
+
 /* ─── NavOrb full-screen launcher card entrance ─── */
 @keyframes launcherIn {
   from { transform: translateY(18px) scale(0.94); opacity: 0; filter: blur(6px); }

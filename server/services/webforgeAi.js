@@ -110,6 +110,10 @@ Below is the JSON of the drawn objects. Positions/sizes are given BOTH in canvas
 
 ${compactJson(objects, 12000)}
 
+THE SKETCH IS A BLUEPRINT, NOT A DESIGN. Frame outlines, their colors, type labels,
+freehand strokes and spray marks are DRAFTING ANNOTATIONS the user drew to mark where
+things go — they are never part of the final visual design.
+
 Identify the website components the user intends. Rules:
 - position/size conventions (wide bar near the top = navbar; large block near top = hero;
   similar blocks in a row = cards; bottom strip = footer; tall narrow side block = sidebar)
@@ -138,7 +142,8 @@ Return ONLY JSON:
       "suggestion": "optional improvement suggestion"
     }
   ],
-  "summary": "one sentence describing the overall site"
+  "summary": "one sentence describing the overall site",
+  "improvements": ["3-6 concrete upgrades you will apply when generating (hierarchy, spacing, copy, accessibility, responsiveness)"]
 }`,
     },
   ];
@@ -146,31 +151,50 @@ Return ONLY JSON:
 }
 
 // ── ГЕНЕРАЦИЯ: компоненти + обекти → пълен проект (файлове)
-async function generateProject({ projectName, objects, components, image, stylePreset }) {
+async function generateProject({ projectName, objects, components, image, stylePreset, pages }) {
+  const multi = Array.isArray(pages) && pages.length > 1;
   const parts = [];
   if (image) parts.push(dataUrlToInlinePart(image));
   parts.push({
-    text: `You are a senior full-stack developer. Generate a COMPLETE, WORKING website
-from this hand-drawn layout. Project name: "${projectName || 'My Website'}".
+    text: `You are a senior product designer AND full-stack developer. Turn this hand-drawn
+blueprint into a COMPLETE, POLISHED, PRODUCTION-QUALITY website.
+Project name: "${projectName || 'My Website'}".
 
 Recognized components:
 ${compactJson(components, 8000)}
 
-Raw drawn objects — positions/sizes as CANVAS PERCENTAGES (xPct/yPct/wPct/hPct),
+${multi
+  ? `PAGES — generate ONE html file per page, all sharing styles.css and app.js:
+${pages.map((p) => `• "${p.name}" -> frontend/${p.path}${p.objects ? ` — objects: ${compactJson(p.objects, 4000)}` : ''}`).join('\n')}
+Every page must include the SAME navigation, with links pointing at the real file
+names above (href="about.html" etc.), and the current page marked as active.`
+  : `Raw drawn objects — positions/sizes as CANVAS PERCENTAGES (xPct/yPct/wPct/hPct),
 plus colors, text and user annotations:
-${compactJson(objects, 8000)}
+${compactJson(objects, 8000)}`}
 
-LAYOUT FIDELITY — NON-NEGOTIABLE:
-- The generated page MUST reproduce the sketch's spatial arrangement. Use the
-  percentage coordinates: preserve the top-to-bottom order of blocks, side-by-side
-  blocks stay side by side (same row → flex/grid columns), relative widths/heights
-  stay proportional (a block with wPct 100 is full-width; wPct ~30 is a third).
-- EVERY drawn object must have a visible counterpart in the HTML. Do not invent
-  major sections the user did not draw; small tasteful embellishments are OK.
-- Reuse the sketch's text content verbatim as real copy (headlines, labels, nav items).
-- Match the sketch's colors where they look intentional (fills/strokes the user chose).
-- Look at the attached image to resolve anything ambiguous — it is the ground truth.
-${stylePreset ? `\nVISUAL STYLE: "${stylePreset}" — apply this aesthetic consistently (typography, colors, spacing, shadows) while keeping the drawn layout intact.\n` : ''}
+THE SKETCH IS A BLUEPRINT, NOT A DESIGN — THIS IS THE MOST IMPORTANT RULE:
+- Frame outlines, their colors, type labels ("hero", "footer"), freehand strokes and
+  spray marks are DRAFTING ANNOTATIONS marking WHERE things go. They must NEVER appear
+  in the output — no colored borders around sections, no outlined boxes, no visible
+  strokes, no "IMG" placeholder tiles with crosses.
+- Image placeholders become real visual treatments (tasteful CSS gradient/solid blocks
+  with proper aspect-ratio, or an <img> with a descriptive alt if a real source is implied).
+- The button colors the user explicitly chose (buttonColor/buttonTextColor) ARE intentional
+  — honour those. Frame stroke colors are NOT.
+
+FOLLOW THE STRUCTURE, THEN IMPROVE IT:
+- Preserve the blueprint's structure: top-to-bottom order of blocks, what sits side by
+  side (same row → flex/grid columns), and rough proportions (wPct ~100 = full width,
+  ~30 = a third). Keep the user's text content as the basis for the real copy.
+- Then ELEVATE it into something a professional studio would ship: a real typographic
+  scale, consistent spacing rhythm, sensible max-widths, hover/focus states, subtle
+  transitions, fully responsive (mobile-first with media queries), and accessible
+  (semantic landmarks, aria labels, alt text, WCAG-AA contrast).
+- Fill obvious gaps the sketch implies but does not spell out: microcopy, a secondary
+  CTA, footer links/columns, section intros. Do NOT invent whole major sections the
+  user never drew.
+- Use the attached image to resolve anything ambiguous — it is the ground truth for intent.
+${stylePreset ? `\nVISUAL STYLE: "${stylePreset}" — apply this aesthetic consistently (typography, palette, spacing, shadows) while keeping the blueprint's structure intact.\n` : ''}
 REQUIREMENTS:
 - Real, production-quality code. NO placeholders like "TODO" or lorem-only content —
   write sensible real copy based on the sketch's text content.

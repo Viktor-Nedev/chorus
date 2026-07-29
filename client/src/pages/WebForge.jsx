@@ -1,15 +1,23 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import Split from 'split.js';
-import { ForgeCanvas } from '../components/webforge/ForgeCanvas';
+import { ForgeCanvas, DEFAULT_PAGE_HEIGHT } from '../components/webforge/ForgeCanvas';
 import { RightPanel } from '../components/webforge/RightPanel';
 import { ForgeLoader } from '../components/webforge/ForgeLoader';
+import { PageTabs } from '../components/webforge/PageTabs';
+import { TEMPLATES } from '../components/webforge/templates';
+import { BRUSH_TYPES } from '../components/webforge/brushes';
 import {
-  makeText, makeImagePlaceholder, makeButton, makeNav,
+  makeText, makeImagePlaceholder, makeButton, makeNav, applyButtonColors,
   makeComponentPlaceholder, FRAME_TYPES, FRAME_COLORS, COMPONENT_KINDS, CUSTOM_PROPS,
 } from '../components/webforge/tools';
 import { analyzeCanvas, serializeObjects } from '../engine/sketchAnalyzer';
 import { buildWireframeHtml } from '../engine/wireframePreview';
+import { buildSiteMap } from '../engine/pageLinks';
+import { downloadProjectZip } from '../engine/projectZip';
 import { useWebforge } from '../hooks/useWebforge';
+import { useSitePublish } from '../hooks/useSitePublish';
+import { useMediaPipe } from '../hooks/useMediaPipe';
+import { VideoProcessor } from '../components/VideoProcessor';
 import { MobileNotice } from '../components/MobileNotice';
 import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { WEBFORGE_PAGES } from '../components/help/manuals';
@@ -22,21 +30,28 @@ const TOOLS = [
   { id: 'BUTTON', icon: '⏺', label: 'Button (B)' },
   { id: 'NAV', icon: '☰', label: 'Navbar' },
   { id: 'COMPONENT', icon: '◈', label: 'Component library' },
-  { id: 'DRAW', icon: '✏', label: 'Free draw — pick brush & color below' },
+  { id: 'DRAW', icon: '✏', label: 'Draw (D) — freehand with the selected brush' },
+  { id: 'ERASER', icon: '⌫', label: 'Eraser (E) — rubs out freehand strokes' },
+  { id: 'FILL', icon: '🪣', label: 'Fill (G) — click a block to colour it, empty space for the page background' },
+  { id: 'HAND', icon: '🖐', label: 'Hand draw — close your hand to draw, open palm to pause' },
 ];
+
+// Инструменти, при които платното е в режим "рисуване"
+const DRAW_TOOLS = new Set(['DRAW', 'ERASER']);
+// Инструменти, които веднага поставят обект и се връщат към SELECT
+const PLACE_TOOLS = new Set(['TEXT', 'IMAGE', 'BUTTON', 'NAV']);
+
+const SHORTCUTS = { v: 'SELECT', f: 'FRAME', t: 'TEXT', i: 'IMAGE', b: 'BUTTON', d: 'DRAW', e: 'ERASER', g: 'FILL' };
 
 const SWATCHES = [
   '#F5F5F5', '#8B7BFA', '#67E8F9', '#3DDC97', '#FFD27F', '#FF8FC7',
   '#FF5555', '#FF8A3D', '#4A9EFF', '#D9D9D9', '#8a8a92', '#1a1a24',
 ];
 
-const BRUSH_TYPES = [
-  { id: 'pencil', label: '✏ Pencil', hint: 'thin precise line' },
-  { id: 'marker', label: '🖊 Marker', hint: 'soft bold stroke' },
-  { id: 'spray', label: '💨 Spray', hint: 'scattered dots' },
-];
-
 const STYLE_PRESETS = ['Minimal', 'Corporate', 'Playful', 'Dark', 'Glassmorphism', 'Brutalist'];
+
+const newPageId = () => 'pg' + Math.random().toString(36).slice(2, 9);
+const blankPage = (name) => ({ id: newPageId(), name, canvasJson: null, height: DEFAULT_PAGE_HEIGHT });
 
 // Auto-analyze е ИЗКЛЮЧЕН по подразбиране — free tier квотата на Gemini е
 // ~20 заявки/ден на модел и автоматичните анализи я изгарят за минути.
@@ -58,8 +73,6 @@ export function WebForge({ navigate }) {
   const [editingName, setEditingName] = useState(false);
   const [stylePreset, setStylePreset] = useState('Minimal');
   const [tool, setTool] = useState('SELECT');
-  const toolRef = useRef({ tool: 'SELECT' });
-  toolRef.current = { tool };
 
   const canvasApiRef = useRef(null);
   const [selected, setSelected] = useState(null);
@@ -83,12 +96,32 @@ export function WebForge({ navigate }) {
   const [deployBusy, setDeployBusy] = useState(false);
 
   // Четка/цвят
-  const [brushType, setBrushType] = useState('pencil');
+  const [brushType, setBrushType] = useState('pen');
   const [brushWidth, setBrushWidth] = useState(3);
   const [brushColor, setBrushColor] = useState('#F5F5F5');
   const [showBrushPopover, setShowBrushPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
   const [showComponentPopover, setShowComponentPopover] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // Страници — всяка е отделен канвас и отделен HTML файл
+  const [pages, setPages] = useState(() => [blankPage('Home')]);
+  const [activePageId, setActivePageId] = useState(null);
+  const activePageIdRef = useRef(null);
+  activePageIdRef.current = activePageId;
+  const [pageHeight, setPageHeight] = useState(DEFAULT_PAGE_HEIGHT);
+  const siteMap = useMemo(() => buildSiteMap(pages), [pages]);
+
+  // Публикуване / рисуване с ръка
+  const publisher = useSitePublish();
+  const [publishedUrl, setPublishedUrl] = useState(null);
+  const [handOn, setHandOn] = useState(false);
+  const videoRef = useRef(null);
+  const [isEmpty, setIsEmpty] = useState(true);
+
+  // Инструментът се чете от canvas handler-ите без re-mount
+  const toolRef = useRef({ tool: 'SELECT', color: '#F5F5F5', brushType: 'pen' });
+  toolRef.current = { tool, color: brushColor, brushType: tool === 'ERASER' ? 'eraser' : brushType };
 
   const [framePopover, setFramePopover] = useState(null); // {rect, x, y}
   const [toast, setToast] = useState(null);
@@ -124,47 +157,68 @@ export function WebForge({ navigate }) {
 
   // ── Wireframe preview: rebuild ~300ms след промяна по платното
   const wireframeTimer = useRef(null);
+  const [showGuides, setShowGuides] = useState(false);
+  const showGuidesRef = useRef(false);
+  showGuidesRef.current = showGuides;
+
   const rebuildWireframe = useCallback(() => {
     clearTimeout(wireframeTimer.current);
     wireframeTimer.current = setTimeout(() => {
       const canvas = canvasApiRef.current?.getCanvas();
       if (!canvas) return;
       const objects = serializeObjects(canvas);
+      setIsEmpty(objects.length === 0);
       setWireframeHtml(
         objects.length
-          ? buildWireframeHtml(objects, { width: canvas.width, height: canvas.height })
+          ? buildWireframeHtml(
+              objects,
+              { width: canvas.width, height: canvas.height },
+              { guides: showGuidesRef.current }
+            )
           : null
       );
     }, 300);
   }, []);
 
+  // Превключването на Guides веднага пречертава preview-то
+  useEffect(() => { rebuildWireframe(); }, [showGuides, rebuildWireframe]);
+
   // ── Персистенция в localStorage (възстановява се при връщане в режима)
   const persistTimer = useRef(null);
   const persistState = useRef({});
-  persistState.current = { projectName, projectId, files, hasBackend, components, summary, stylePreset };
+  persistState.current = { projectName, projectId, files, hasBackend, components, summary, stylePreset, pages, activePageId };
+
+  // Текущият канвас → в масива със страници (без setState — за persist/generate)
+  const snapshotPages = useCallback(() => {
+    const api = canvasApiRef.current;
+    const canvas = api?.getCanvas();
+    const { pages: ps, activePageId: aid } = persistState.current;
+    if (!canvas || !aid) return ps;
+    return ps.map((p) =>
+      p.id === aid
+        ? { ...p, canvasJson: canvas.toJSON(CUSTOM_PROPS), height: api.getPageHeight() }
+        : p
+    );
+  }, []);
+
   const schedulePersist = useCallback(() => {
     clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
-      const canvas = canvasApiRef.current?.getCanvas();
-      if (!canvas) return;
+      if (!canvasApiRef.current?.getCanvas()) return;
       try {
         localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({
-            canvasJson: canvas.toJSON(CUSTOM_PROPS),
-            ...persistState.current,
-            savedAt: Date.now(),
-          })
+          JSON.stringify({ ...persistState.current, pages: snapshotPages(), savedAt: Date.now() })
         );
       } catch {
         /* quota — пропусни */
       }
     }, 1000);
-  }, []);
+  }, [snapshotPages]);
 
   useEffect(() => {
     schedulePersist();
-  }, [projectName, projectId, files, hasBackend, components, stylePreset, schedulePersist]);
+  }, [projectName, projectId, files, hasBackend, components, stylePreset, pages, activePageId, schedulePersist]);
 
   // ── Анализ (ръчен + автоматичен)
   const lastAnalyzeAt = useRef(0);
@@ -222,6 +276,7 @@ export function WebForge({ navigate }) {
   // ── Canvas api ready → възстанови проекта от localStorage
   const handleCanvasReady = useCallback((api) => {
     canvasApiRef.current = api;
+    let restored = null;
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (saved) {
@@ -232,22 +287,125 @@ export function WebForge({ navigate }) {
         setComponents(saved.components || []);
         setSummary(saved.summary || '');
         setStylePreset(saved.stylePreset || 'Minimal');
-        if (saved.canvasJson?.objects?.length) {
-          // Не пускай auto-analyze веднага след restore — компонентите са запазени
-          lastAnalyzeAt.current = Date.now();
-          api.loadJSON(saved.canvasJson);
+        // Миграция от стария едно-канвасов формат
+        const savedPages = saved.pages?.length
+          ? saved.pages
+          : saved.canvasJson
+            ? [{ ...blankPage('Home'), canvasJson: saved.canvasJson }]
+            : null;
+        if (savedPages) {
+          setPages(savedPages);
+          const aid = savedPages.find((p) => p.id === saved.activePageId)?.id || savedPages[0].id;
+          setActivePageId(aid);
+          restored = savedPages.find((p) => p.id === aid);
         }
       }
     } catch {
       /* повреден запис — игнорирай */
     }
+    if (restored?.canvasJson?.objects?.length) {
+      lastAnalyzeAt.current = Date.now(); // не пали auto-analyze веднага след restore
+      api.loadJSON(restored.canvasJson, restored.height);
+    } else {
+      // Първо стартиране: една празна начална страница
+      setActivePageId((cur) => cur ?? pagesInitRef.current);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // id-то на първата страница (създадена в useState initializer-а)
+  const pagesInitRef = useRef(null);
+  if (pagesInitRef.current === null) pagesInitRef.current = pages[0].id;
+
+  // ── Смяна/добавяне/триене на страници
+  const switchPage = useCallback((id) => {
+    const api = canvasApiRef.current;
+    if (!api || id === activePageIdRef.current) return;
+    const snapped = snapshotPages();
+    const target = snapped.find((p) => p.id === id);
+    setPages(snapped);
+    setActivePageId(id);
+    if (target?.canvasJson) api.loadJSON(target.canvasJson, target.height);
+    else api.reset(target?.height || DEFAULT_PAGE_HEIGHT);
+  }, [snapshotPages]);
+
+  const addPage = useCallback(() => {
+    const snapped = snapshotPages();
+    const page = blankPage(`Page ${snapped.length + 1}`);
+    setPages([...snapped, page]);
+    setActivePageId(page.id);
+    canvasApiRef.current?.reset(DEFAULT_PAGE_HEIGHT);
+  }, [snapshotPages]);
+
+  const renamePage = useCallback((id, name) => {
+    setPages((ps) => ps.map((p) => (p.id === id ? { ...p, name } : p)));
+  }, []);
+
+  const deletePage = useCallback((id) => {
+    const snapped = snapshotPages().filter((p) => p.id !== id);
+    if (!snapped.length) return;
+    setPages(snapped);
+    if (id === activePageIdRef.current) {
+      setActivePageId(snapped[0].id);
+      const first = snapped[0];
+      if (first.canvasJson) canvasApiRef.current?.loadJSON(first.canvasJson, first.height);
+      else canvasApiRef.current?.reset(first.height);
+    }
+  }, [snapshotPages]);
+
+  // ── Шаблон → попълва текущата страница
+  const applyTemplate = (tpl) => {
+    const api = canvasApiRef.current;
+    const canvas = api?.getCanvas();
+    if (!canvas) return;
+    api.addObjects(tpl.build(canvas.width, canvas.height));
+    setShowTemplates(false);
+    setTool('SELECT');
+    showToast(`✓ ${tpl.name} added — adjust it, then Generate`);
+  };
+
+  // ── Рисуване с ръка: затворена длан пише, отворена длан пауза
+  const { gestureRef, handPositionRef, detect } = useMediaPipe(videoRef, handOn);
+  const handStrokeRef = useRef([]);
+  const handSmoothRef = useRef(null);
+
+  useEffect(() => {
+    if (!handOn || tool !== 'HAND') return undefined;
+    const id = setInterval(() => {
+      const api = canvasApiRef.current;
+      const canvas = api?.getCanvas();
+      if (!canvas) return;
+      const drawing = gestureRef.current === 'CLOSED_FIST' || gestureRef.current === 'PINCH';
+      if (!drawing) {
+        if (handStrokeRef.current.length > 1) {
+          api.strokeFromPoints(handStrokeRef.current, { color: brushColor, width: brushWidth, type: brushType });
+        }
+        handStrokeRef.current = [];
+        handSmoothRef.current = null;
+        return;
+      }
+      const host = canvas.getElement()?.parentElement?.parentElement;
+      const scrollTop = host?.scrollTop || 0;
+      const raw = {
+        x: (1 - handPositionRef.current.x) * canvas.width, // огледално, като в Solo
+        y: handPositionRef.current.y * (host?.clientHeight || canvas.height) + scrollTop,
+      };
+      // EMA изглаждане срещу треперене
+      const s = handSmoothRef.current;
+      const pt = s ? { x: s.x + (raw.x - s.x) * 0.35, y: s.y + (raw.y - s.y) * 0.35 } : raw;
+      handSmoothRef.current = pt;
+      handStrokeRef.current.push([Math.round(pt.x), Math.round(pt.y)]);
+    }, 40);
+    return () => clearInterval(id);
+  }, [handOn, tool, brushColor, brushWidth, brushType, gestureRef, handPositionRef]);
 
   // ── New project
   const handleNewProject = () => {
     if (!window.confirm('Start fresh? The current project will be cleared.')) return;
-    canvasApiRef.current?.clear();
+    const first = blankPage('Home');
+    setPages([first]);
+    setActivePageId(first.id);
+    canvasApiRef.current?.reset(DEFAULT_PAGE_HEIGHT);
     setProjectName('My Website');
     setProjectId(null);
     setFiles([]);
@@ -256,6 +414,7 @@ export function WebForge({ navigate }) {
     setSummary('');
     setChatMessages([]);
     setDeployment(null);
+    setPublishedUrl(null);
     setWireframeHtml(null);
     setErrorBanner(null);
     localStorage.removeItem(STORAGE_KEY);
@@ -273,14 +432,9 @@ export function WebForge({ navigate }) {
   };
 
   const handleToolClick = (id) => {
-    const api = canvasApiRef.current;
-    api?.setDrawingMode(id === 'DRAW');
-    if (id === 'DRAW') {
-      api?.setBrush({ type: brushType, color: brushColor, width: brushWidth });
-      setShowBrushPopover(true);
-    } else {
-      setShowBrushPopover(false);
-    }
+    if (id !== 'COMPONENT') setShowComponentPopover(false);
+    if (!DRAW_TOOLS.has(id)) setShowBrushPopover(false);
+
     switch (id) {
       case 'TEXT':
         placeAtCenter((x, y) => makeText(x, y, 'Edit me', 'body'));
@@ -297,14 +451,56 @@ export function WebForge({ navigate }) {
       case 'COMPONENT':
         setShowComponentPopover((s) => !s);
         return;
+      case 'DRAW':
+        setShowBrushPopover(true);
+        setTool('DRAW');
+        return;
+      case 'HAND':
+        setHandOn(true);
+        setTool('HAND');
+        return;
       default:
         setTool(id);
     }
   };
 
-  // Промяна на четката → приложи веднага
+  // ── ЕДИН източник на истина за режима на платното. Преди това drawing mode
+  // се включваше само в handleToolClick, а бутонът 🖌 само отваряше popover-а
+  // → четката изглеждаше активна, но нищо не се рисуваше.
   useEffect(() => {
-    canvasApiRef.current?.setBrush({ type: brushType, color: brushColor, width: brushWidth });
+    const api = canvasApiRef.current;
+    if (!api) return;
+    api.setDrawingMode(DRAW_TOOLS.has(tool));
+    if (DRAW_TOOLS.has(tool)) {
+      api.setBrush({
+        type: tool === 'ERASER' ? 'eraser' : brushType,
+        color: brushColor,
+        width: brushWidth,
+      });
+    }
+  }, [tool, brushType, brushColor, brushWidth]);
+
+  // Избор на четка (или отваряне на 🖌) винаги активира рисуването
+  const pickBrush = (id) => {
+    setBrushType(id);
+    setTool(id === 'eraser' ? 'ERASER' : 'DRAW');
+  };
+
+  // ── Клавишни комбинации
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      const next = SHORTCUTS[e.key.toLowerCase()];
+      if (next) {
+        e.preventDefault();
+        handleToolClick(next);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brushType, brushColor, brushWidth]);
 
   const applyColor = (color) => {
@@ -350,6 +546,9 @@ export function WebForge({ navigate }) {
         stroke: FRAME_COLORS[patch.frameType] || FRAME_COLORS.auto,
         strokeDashArray: patch.frameType === 'form' || patch.frameType === 'backend' ? [8, 5] : null,
       });
+    } else if (patch.buttonColor || patch.buttonTextColor || (patch.buttonStyle && obj.customType === 'button')) {
+      // Цветът на бутона се прилага и върху групата (rect + label)
+      applyButtonColors(obj, patch);
     } else {
       obj.set(patch);
     }
@@ -368,6 +567,24 @@ export function WebForge({ navigate }) {
     setErrorBanner(null);
     try {
       const payload = analyzeCanvas(canvas);
+      // Всички страници (текущата — прясно сериализирана) + техните пътища
+      const snapped = snapshotPages();
+      const map = buildSiteMap(snapped);
+      const pagePayload = snapped.map((p, i) => ({
+        name: map[i].name,
+        path: map[i].path,
+        objects:
+          p.id === activePageIdRef.current
+            ? payload.objects
+            : (p.canvasJson?.objects || []).map((o) => ({
+                type: o.type, customType: o.customType, text: o.text,
+                xPct: o.left != null ? Math.round((o.left / canvas.width) * 1000) / 10 : undefined,
+                yPct: o.top != null ? Math.round((o.top / (p.height || canvas.height)) * 1000) / 10 : undefined,
+                buttonStyle: o.buttonStyle, buttonColor: o.buttonColor,
+                navItems: o.navItems, annotation: o.annotation,
+              })),
+      }));
+
       const result = await wf.generate({
         projectId,
         projectName,
@@ -375,12 +592,14 @@ export function WebForge({ navigate }) {
         components,
         image: payload.image,
         stylePreset,
+        pages: pagePayload,
       });
       setProjectId(result.projectId);
       setFiles(result.files);
       setHasBackend(result.hasBackend);
       setDeployment(null);
-      showToast('✓ Website generated');
+      setPublishedUrl(null);
+      showToast(`✓ Website generated — ${result.files.length} files`);
     } catch (e) {
       setErrorBanner({ msg: aiErrorMessage(e, 'Generation'), retry: 'generate' });
     }
@@ -448,12 +667,28 @@ export function WebForge({ navigate }) {
     setDeployment(null);
   };
 
+  // ZIP-ът се сглобява в браузъра → работи и без Node сървър
   const handleDownload = async () => {
+    if (!files.length) {
+      showToast('Generate the website first');
+      return;
+    }
     try {
-      await wf.save({ projectId, files });
-      window.open(wf.downloadUrl(projectId), '_blank');
+      await downloadProjectZip(files, projectName);
+      showToast('✓ Project downloaded');
     } catch (e) {
       showToast('Download failed — ' + e.message);
+    }
+  };
+
+  // Публикуване в Supabase Storage → истински споделим URL
+  const handlePublish = async () => {
+    try {
+      const { url } = await publisher.publish(projectId || 'site', files, projectName);
+      setPublishedUrl(url);
+      showToast('✓ Published');
+    } catch (e) {
+      showToast(e.message);
     }
   };
 
@@ -588,10 +823,13 @@ export function WebForge({ navigate }) {
             {/* Четка */}
             <button
               onClick={() => {
-                setShowBrushPopover((s) => !s);
+                // Отварянето на четката ВИНАГИ активира рисуването — иначе
+                // четката изглежда избрана, но платното е още в Select.
                 setShowColorPopover(false);
+                setShowBrushPopover((s) => !s);
+                setTool((t) => (DRAW_TOOLS.has(t) ? t : 'DRAW'));
               }}
-              title="Brush — type & width"
+              title="Brush — type & width (D)"
               className={`w-10 h-10 rounded-lg flex items-center justify-center text-base transition border ${
                 showBrushPopover
                   ? 'bg-accent-violet/25 border-accent-violet text-white'
@@ -625,14 +863,71 @@ export function WebForge({ navigate }) {
             </button>
           </aside>
 
-          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <PageTabs
+              pages={pages}
+              activeId={activePageId}
+              siteMap={siteMap}
+              onSelect={switchPage}
+              onAdd={addPage}
+              onRename={renamePage}
+              onDelete={deletePage}
+            />
+            <div className="flex-1 relative overflow-hidden">
             <ForgeCanvas
               toolRef={toolRef}
               onReady={handleCanvasReady}
               onSelection={setSelected}
               onObjectsChanged={handleObjectsChanged}
               onFrameCreated={handleFrameCreated}
+              onHeightChange={setPageHeight}
             />
+
+            {/* Празно състояние: шаблони вместо бял лист */}
+            {isEmpty && (
+              <div className="absolute inset-x-0 top-10 flex flex-col items-center pointer-events-none">
+                <p className="text-xs text-gray-600 pointer-events-none">
+                  Draw a block with <b className="text-gray-400">F</b>, or start from a template
+                </p>
+                <div className="mt-3 flex flex-wrap justify-center gap-2 pointer-events-auto">
+                  {TEMPLATES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => applyTemplate(t)}
+                      title={t.hint}
+                      className="rounded-lg border border-ink-line bg-ink-soft/80 px-3 py-1.5 text-xs text-gray-300 hover:text-white hover:border-accent-violet transition"
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Височина на страницата */}
+            <div className="absolute right-3 bottom-3 z-20 flex items-center gap-2">
+              <span className="rounded-full bg-ink-soft/85 border border-ink-line px-2.5 py-1 text-[10px] text-gray-500">
+                page {pageHeight}px
+              </span>
+              <button
+                onClick={() => canvasApiRef.current?.growPage()}
+                title="Make the page longer — the site continues below"
+                className="rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300 hover:text-white hover:border-accent-violet transition"
+              >
+                ＋ Extend
+              </button>
+            </div>
+
+            {/* Скрито видео за рисуване с ръка */}
+            {handOn && (
+              <>
+                <VideoProcessor ref={videoRef} detect={detect} active={handOn} />
+                <div className="absolute left-3 bottom-3 z-20 rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300">
+                  🖐 Hand draw — close your hand to draw
+                  <button onClick={() => { setHandOn(false); setTool('SELECT'); }} className="ml-2 text-gray-500 hover:text-red-400">✕</button>
+                </div>
+              </>
+            )}
 
             {/* Color popover */}
             {showColorPopover && (
@@ -669,9 +964,9 @@ export function WebForge({ navigate }) {
                 {BRUSH_TYPES.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => setBrushType(b.id)}
+                    onClick={() => pickBrush(b.id)}
                     className={`block w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition mb-1 ${
-                      brushType === b.id
+                      (b.id === 'eraser' ? tool === 'ERASER' : brushType === b.id && tool === 'DRAW')
                         ? 'bg-accent-violet/20 text-white border border-accent-violet/50'
                         : 'text-gray-400 hover:bg-ink-line/50 border border-transparent'
                     }`}
@@ -717,6 +1012,7 @@ export function WebForge({ navigate }) {
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -734,6 +1030,12 @@ export function WebForge({ navigate }) {
             onStopDocker={handleStopDocker}
             onDownload={handleDownload}
             deployBusy={deployBusy}
+            onPublish={handlePublish}
+            publishing={publisher.publishing}
+            publishAvailable={publisher.available}
+            publishedUrl={publishedUrl}
+            showGuides={showGuides}
+            onToggleGuides={() => setShowGuides((g) => !g)}
             components={components}
             summary={summary}
             analyzing={wf.analyzing}

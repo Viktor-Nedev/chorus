@@ -1,27 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { Canvas, PencilBrush, SprayBrush } from 'fabric';
+import { Canvas, Path } from 'fabric';
 import { makeFrame, CUSTOM_PROPS } from './tools';
-
-// Полупрозрачна версия на hex цвят — за мекия "маркер" щрих
-function withAlpha(hex, alpha) {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
-}
+import { applyBrush, strokeProps } from './brushes';
 
 const UNDO_CAP = 30;
+export const DEFAULT_PAGE_HEIGHT = 1400;
+const GROW_STEP = 600;
 
 /**
  * ForgeCanvas — Fabric v6 wrapper. Създава canvas ВЕДНЪЖ и излага
- * императивен api през onReady (getCanvas/undo/redo/clear) — същият идиом
- * като onSystemReady при P5Canvas. Активният инструмент идва през toolRef
- * (mutable ref, четен в event handler-ите — без re-mount).
+ * императивен api през onReady. Активният инструмент идва през toolRef
+ * (mutable ref, четен в handler-ите — без re-mount).
  *
- * Frame инструментът е drag-to-create: mousedown/move/up върху platnoto;
- * при пускане родителят получава onFrameCreated(rect) за type popover-а.
+ * Платното е ВИСОКО колкото страницата (pageHeight) и се скролва вертикално
+ * в host-а, така че сайтът може да продължава надолу.
  */
-export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, onFrameCreated }) {
+export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, onFrameCreated, onHeightChange }) {
   const hostRef = useRef(null);
   const canvasElRef = useRef(null);
 
@@ -33,22 +27,24 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
   onObjectsChangedRef.current = onObjectsChanged;
   const onFrameCreatedRef = useRef(onFrameCreated);
   onFrameCreatedRef.current = onFrameCreated;
+  const onHeightChangeRef = useRef(onHeightChange);
+  onHeightChangeRef.current = onHeightChange;
 
   useEffect(() => {
     const host = hostRef.current;
     const el = canvasElRef.current;
     if (!host || !el) return;
 
+    let pageHeight = DEFAULT_PAGE_HEIGHT;
+
     const canvas = new Canvas(el, {
       width: host.clientWidth,
-      height: host.clientHeight,
+      height: pageHeight,
       backgroundColor: '#0d0d12',
       selection: true,
       preserveObjectStacking: true,
     });
-    canvas.freeDrawingBrush = new PencilBrush(canvas);
-    canvas.freeDrawingBrush.color = '#F5F5F5';
-    canvas.freeDrawingBrush.width = 2;
+    applyBrush(canvas, { type: 'pen', color: '#F5F5F5', width: 3 });
 
     // ── Undo/redo: JSON snapshot стек
     let undoStack = [JSON.stringify(canvas.toJSON(CUSTOM_PROPS))];
@@ -65,8 +61,9 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
 
     const restore = async (json) => {
       restoring = true;
+      const bg = canvas.backgroundColor;
       await canvas.loadFromJSON(json);
-      canvas.backgroundColor = '#0d0d12';
+      canvas.backgroundColor = bg;
       canvas.renderAll();
       restoring = false;
       onObjectsChangedRef.current?.();
@@ -76,11 +73,21 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
     canvas.on('object:modified', pushSnapshot);
     canvas.on('object:removed', pushSnapshot);
 
-    // Щрихите от четките (path за молив/маркер, group за спрей) получават
-    // customType 'drawing', за да ги разпознават wireframe-ът и анализът
+    // Расти страницата, ако се рисува близо до долния ръб
+    const growIfNeeded = (y) => {
+      if (y < pageHeight - 120) return;
+      pageHeight += GROW_STEP;
+      canvas.setDimensions({ width: canvas.width, height: pageHeight });
+      canvas.renderAll();
+      onHeightChangeRef.current?.(pageHeight);
+    };
+
+    // Щрихите получават customType според четката (гумата — destination-out)
     canvas.on('path:created', (e) => {
       const p = e.path;
-      if (p && !p.customType) p.set({ customType: 'drawing' });
+      if (!p) return;
+      p.set(strokeProps(toolRef.current?.brushType));
+      growIfNeeded((p.top || 0) + (p.height || 0));
     });
 
     // ── Selection събития → Properties панела
@@ -89,12 +96,28 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
     canvas.on('selection:updated', emitSelection);
     canvas.on('selection:cleared', () => onSelectionRef.current?.(null));
 
-    // ── Frame drag-to-create
+    // ── Frame drag-to-create + bucket fill
     let draftRect = null;
     let dragStart = null;
 
     canvas.on('mouse:down', (opt) => {
       const tool = toolRef.current?.tool;
+
+      // Кофичка: клик върху обект → неговият fill; по празно → фон на страницата
+      if (tool === 'FILL') {
+        const color = toolRef.current?.color || '#F5F5F5';
+        if (opt.target) {
+          opt.target.set({ fill: color });
+          canvas.renderAll();
+          pushSnapshot();
+        } else {
+          canvas.backgroundColor = color;
+          canvas.renderAll();
+          onObjectsChangedRef.current?.();
+        }
+        return;
+      }
+
       if (tool !== 'FRAME' || opt.target) return;
       const p = canvas.getScenePoint(opt.e);
       dragStart = p;
@@ -131,15 +154,15 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
         return;
       }
       rect.set({ selectable: true, evented: true });
+      growIfNeeded(rect.top + rect.height);
       const p = canvas.getScenePoint(opt.e);
-      // Родителят показва type popover при екранните координати
       onFrameCreatedRef.current?.(rect, { x: opt.e.clientX, y: opt.e.clientY });
       pushSnapshot();
     });
 
-    // ── Resize с контейнера
+    // ── Resize: ширината следва контейнера, височината е на страницата
     const ro = new ResizeObserver(() => {
-      canvas.setDimensions({ width: host.clientWidth, height: host.clientHeight });
+      canvas.setDimensions({ width: host.clientWidth, height: pageHeight });
     });
     ro.observe(host);
 
@@ -187,38 +210,78 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
         canvas.setActiveObject(obj);
         canvas.renderAll();
       },
+      addObjects: (objs) => {
+        restoring = true;
+        objs.forEach((o) => canvas.add(o));
+        restoring = false;
+        canvas.renderAll();
+        pushSnapshot();
+      },
       setDrawingMode: (on) => {
         canvas.isDrawingMode = on;
       },
-      setBrush: ({ type = 'pencil', color = '#F5F5F5', width = 2 } = {}) => {
-        // Молив = чиста тънка линия; маркер = широк мек полупрозрачен щрих
-        // (същият PencilBrush — CircleBrush дава разкъсани точки); спрей =
-        // SprayBrush с гъсти дребни частици.
-        if (type === 'spray') {
-          const brush = new SprayBrush(canvas);
-          brush.color = color;
-          brush.width = width * 5;
-          brush.density = 60;
-          brush.dotWidth = Math.max(1, width / 3);
-          brush.dotWidthVariance = 1;
-          canvas.freeDrawingBrush = brush;
-        } else {
-          const brush = new PencilBrush(canvas);
-          brush.color = type === 'marker' ? withAlpha(color, 0.5) : color;
-          brush.width = type === 'marker' ? width * 3 : width;
-          brush.strokeLineCap = 'round';
-          brush.strokeLineJoin = 'round';
-          canvas.freeDrawingBrush = brush;
-        }
+      setBrush: (opts) => applyBrush(canvas, opts),
+      // Рисуване с ръка: точки в координати на платното → Path с текущата четка
+      strokeFromPoints: (points, { color = '#F5F5F5', width = 3, type = 'pen' } = {}) => {
+        if (!points || points.length < 2) return;
+        const d = points.map(([x, y], i) => `${i ? 'L' : 'M'} ${x} ${y}`).join(' ');
+        const path = new Path(d, {
+          stroke: color,
+          strokeWidth: width,
+          fill: null,
+          strokeLineCap: 'round',
+          strokeLineJoin: 'round',
+          selectable: true,
+          ...strokeProps(type),
+        });
+        canvas.add(path);
+        canvas.renderAll();
+        growIfNeeded(path.top + path.height);
       },
-      loadJSON: async (json) => {
+      setPageHeight: (h) => {
+        pageHeight = Math.max(400, Math.round(h));
+        canvas.setDimensions({ width: canvas.width, height: pageHeight });
+        canvas.renderAll();
+        onHeightChangeRef.current?.(pageHeight);
+      },
+      growPage: () => {
+        pageHeight += GROW_STEP;
+        canvas.setDimensions({ width: canvas.width, height: pageHeight });
+        canvas.renderAll();
+        onHeightChangeRef.current?.(pageHeight);
+      },
+      getPageHeight: () => pageHeight,
+      setBackground: (color) => {
+        canvas.backgroundColor = color;
+        canvas.renderAll();
+        onObjectsChangedRef.current?.();
+      },
+      loadJSON: async (json, height) => {
         restoring = true;
+        if (height) {
+          pageHeight = Math.max(400, Math.round(height));
+          canvas.setDimensions({ width: host.clientWidth, height: pageHeight });
+        }
         await canvas.loadFromJSON(json);
-        canvas.backgroundColor = '#0d0d12';
         canvas.renderAll();
         restoring = false;
         undoStack = [JSON.stringify(canvas.toJSON(CUSTOM_PROPS))];
         redoStack = [];
+        onHeightChangeRef.current?.(pageHeight);
+        onObjectsChangedRef.current?.();
+      },
+      reset: (height = DEFAULT_PAGE_HEIGHT) => {
+        restoring = true;
+        canvas.getObjects().forEach((o) => canvas.remove(o));
+        canvas.discardActiveObject();
+        canvas.backgroundColor = '#0d0d12';
+        pageHeight = height;
+        canvas.setDimensions({ width: host.clientWidth, height: pageHeight });
+        canvas.renderAll();
+        restoring = false;
+        undoStack = [JSON.stringify(canvas.toJSON(CUSTOM_PROPS))];
+        redoStack = [];
+        onHeightChangeRef.current?.(pageHeight);
         onObjectsChangedRef.current?.();
       },
     });
@@ -232,7 +295,7 @@ export function ForgeCanvas({ toolRef, onReady, onSelection, onObjectsChanged, o
   }, []);
 
   return (
-    <div ref={hostRef} className="absolute inset-0">
+    <div ref={hostRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden webforge-scroll">
       <canvas ref={canvasElRef} />
     </div>
   );

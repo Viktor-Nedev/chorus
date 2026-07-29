@@ -54,6 +54,12 @@ export function RightPanel({
   onStopDocker,
   onDownload,
   deployBusy,
+  onPublish,
+  publishing,
+  publishAvailable,
+  publishedUrl,
+  showGuides,
+  onToggleGuides,
   components,
   summary,
   analyzing,
@@ -178,6 +184,17 @@ export function RightPanel({
               </button>
             ))}
             <div className="ml-auto flex items-center">
+              {previewMode === 'wireframe' && (
+                <button
+                  onClick={onToggleGuides}
+                  title="Show the drafting guides (frame outlines + labels). They never appear in the generated site."
+                  className={`px-1.5 py-1 text-[10px] rounded transition ${
+                    showGuides ? 'bg-ink-line text-white' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  ⧉ Guides
+                </button>
+              )}
               <button
                 onClick={() => setPreviewKey((k) => k + 1)}
                 className="px-1.5 py-1 text-[11px] text-gray-500 hover:text-white transition"
@@ -388,84 +405,106 @@ export function RightPanel({
           <div className="max-w-lg mx-auto space-y-4">
             <h3 className="font-display font-bold text-white text-lg">🚀 Deploy Your Website</h3>
 
-            {!projectId ? (
+            {!files?.length ? (
               <p className="text-xs text-gray-500">Generate the site first.</p>
             ) : (
               <>
-                <div className="rounded-lg border border-ink-line bg-ink p-4 text-xs text-gray-400">
-                  Project type:{' '}
-                  {hasBackend ? (
-                    <span className="text-yellow-400">Full Stack (Frontend + Backend) — needs Docker</span>
-                  ) : (
-                    <span className="text-accent-cyan">Static Only — hosted directly by CHORUS server</span>
-                  )}
-                </div>
+                {/* ── 1. Публикуване: истински споделим адрес, без сървър ── */}
+                {publishedUrl ? (
+                  <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
+                    <div className="text-xs text-green-400 mb-2">✓ Published — anyone can open this</div>
+                    <a
+                      href={publishedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-accent-cyan underline break-all"
+                    >
+                      {publishedUrl}
+                    </a>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => navigator.clipboard?.writeText(publishedUrl)}
+                        className="flex-1 rounded border border-ink-line py-1.5 text-xs text-gray-300 hover:bg-ink-line/40 transition"
+                      >
+                        Copy link
+                      </button>
+                      <button
+                        onClick={onPublish}
+                        disabled={publishing}
+                        className="flex-1 rounded border border-ink-line py-1.5 text-xs text-gray-300 hover:bg-ink-line/40 transition disabled:opacity-50"
+                      >
+                        {publishing ? 'Updating…' : 'Re-publish'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={onPublish}
+                    disabled={publishing || !publishAvailable}
+                    title={publishAvailable ? 'Upload the site to public hosting' : 'Sign in (and configure Supabase) to publish'}
+                    className="w-full rounded-lg border border-accent-violet/50 bg-accent-violet/10 py-3 text-sm text-accent-violet hover:bg-accent-violet/20 transition text-left px-4 disabled:opacity-50"
+                  >
+                    🌍 <span className="font-bold">{publishing ? 'Publishing…' : 'Publish website'}</span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">
+                      {publishAvailable
+                        ? 'Uploads to public hosting and gives you a shareable link'
+                        : 'Sign in to publish (needs Supabase configured)'}
+                    </span>
+                  </button>
+                )}
 
+                {/* ── 2. Сваляне: сглобява се в браузъра, работи винаги ── */}
                 <button
                   onClick={onDownload}
                   className="w-full rounded-lg border border-ink-line bg-ink-soft py-3 text-sm text-gray-200 hover:bg-ink-line/40 transition text-left px-4"
                 >
                   📥 <span className="font-bold">Download ZIP</span>
                   <span className="block text-[11px] text-gray-500 mt-0.5">
-                    Full project + README with run instructions
+                    Full project + README — works offline, no server needed
                   </span>
                 </button>
 
-                {hasBackend && !dockerAvailable ? (
-                  <div className="rounded-lg border border-yellow-900 bg-yellow-950/30 p-4 text-xs text-yellow-400">
-                    ⚠ Docker Desktop is not running. Start it and reload to deploy the
-                    backend in an isolated container.
+                {hasBackend && (
+                  <div className="rounded-lg border border-ink-line bg-ink p-4 text-[11px] text-gray-400">
+                    This project includes a <b className="text-gray-200">backend</b> (Express API). Publishing
+                    puts the frontend online; run the API from the ZIP with
+                    <code className="mx-1 text-accent-cyan">cd backend &amp;&amp; npm i &amp;&amp; npm start</code>
+                    or host it anywhere that runs Node.
                   </div>
-                ) : deployment ? (
-                  <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
-                    <div className="text-xs text-green-400 mb-2">
-                      ✓ Deployed ({deployment.type === 'docker' ? 'Docker container' : 'static hosting'})
-                    </div>
-                    <a
-                      href={deployment.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-accent-cyan underline break-all"
-                    >
-                      {deployment.url}
-                    </a>
-                    {deployment.type === 'docker' && (
-                      <button
-                        onClick={onStopDocker}
-                        className="mt-3 block w-full rounded border border-red-900 bg-red-950/40 py-1.5 text-xs text-red-400 hover:bg-red-900/40 transition"
-                      >
-                        ⏹ Stop container
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    onClick={onDeployDocker}
-                    disabled={deployBusy}
-                    className="w-full rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 py-3 text-sm text-accent-cyan hover:bg-accent-cyan/20 transition text-left px-4 disabled:opacity-50"
-                  >
-                    🐳{' '}
-                    <span className="font-bold">
-                      {deployBusy ? 'Deploying…' : hasBackend ? 'Deploy to Local Docker' : 'Host on CHORUS server'}
-                    </span>
-                    <span className="block text-[11px] text-gray-500 mt-0.5">
-                      {hasBackend
-                        ? 'Isolated container (node:20-alpine, 256MB) on a localhost port'
-                        : 'Instant static hosting at a /hosted/… URL'}
-                    </span>
-                  </button>
                 )}
 
-                <button
-                  disabled
-                  className="w-full rounded-lg border border-ink-line py-3 text-sm text-gray-600 text-left px-4 cursor-not-allowed"
-                  title="Requires a Vercel API token"
-                >
-                  ▲ <span className="font-bold">Deploy to Vercel</span>
-                  <span className="block text-[11px] text-gray-700 mt-0.5">
-                    Requires a Vercel API token — coming soon
-                  </span>
-                </button>
+                {/* ── 3. Docker: само ако наистина е наличен (local dev) ── */}
+                {dockerAvailable && (
+                  deployment ? (
+                    <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
+                      <div className="text-xs text-green-400 mb-2">
+                        ✓ Running locally ({deployment.type === 'docker' ? 'container' : 'static'})
+                      </div>
+                      <a href={deployment.url} target="_blank" rel="noreferrer" className="text-sm text-accent-cyan underline break-all">
+                        {deployment.url}
+                      </a>
+                      {deployment.type === 'docker' && (
+                        <button
+                          onClick={onStopDocker}
+                          className="mt-3 block w-full rounded border border-red-900 bg-red-950/40 py-1.5 text-xs text-red-400 hover:bg-red-900/40 transition"
+                        >
+                          ⏹ Stop container
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={onDeployDocker}
+                      disabled={deployBusy || !projectId}
+                      className="w-full rounded-lg border border-ink-line py-3 text-sm text-gray-300 hover:bg-ink-line/40 transition text-left px-4 disabled:opacity-50"
+                    >
+                      🐳 <span className="font-bold">{deployBusy ? 'Starting…' : 'Run locally in Docker'}</span>
+                      <span className="block text-[11px] text-gray-500 mt-0.5">
+                        Optional — runs the full stack on your own machine
+                      </span>
+                    </button>
+                  )
+                )}
               </>
             )}
           </div>
@@ -529,17 +568,37 @@ function PropertiesEditor({ selected, selectedTick, onUpdate, onDelete }) {
 
       {/* Button */}
       {ct === 'button' && (
-        <Field label="Style">
-          <select
-            value={selected.buttonStyle || 'primary'}
-            onChange={(e) => onUpdate({ buttonStyle: e.target.value })}
-            className={inputCls}
-          >
-            {['primary', 'secondary', 'danger', 'ghost', 'link'].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </Field>
+        <>
+          <Field label="Style">
+            <select
+              value={selected.buttonStyle || 'primary'}
+              onChange={(e) => onUpdate({ buttonStyle: e.target.value })}
+              className={inputCls}
+            >
+              {['primary', 'secondary', 'danger', 'ghost', 'link'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <div className="flex gap-3">
+            <Field label="Button colour">
+              <input
+                type="color"
+                value={selected.buttonColor || '#8B7BFA'}
+                onChange={(e) => onUpdate({ buttonColor: e.target.value })}
+                className="w-9 h-9 bg-transparent cursor-pointer"
+              />
+            </Field>
+            <Field label="Text colour">
+              <input
+                type="color"
+                value={selected.buttonTextColor || '#0a0a0f'}
+                onChange={(e) => onUpdate({ buttonTextColor: e.target.value })}
+                className="w-9 h-9 bg-transparent cursor-pointer"
+              />
+            </Field>
+          </div>
+        </>
       )}
 
       {/* Fill color — за rect обекти */}

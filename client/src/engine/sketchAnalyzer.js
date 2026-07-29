@@ -52,6 +52,8 @@ function serializeObject(obj, cw, ch) {
     customType: obj.customType || undefined,
     textRole: obj.textRole || undefined,
     buttonStyle: obj.buttonStyle || undefined,
+    buttonColor: obj.buttonColor || undefined,
+    buttonTextColor: obj.buttonTextColor || undefined,
     formFields: obj.formFields || undefined,
     navItems: obj.navItems || undefined,
     componentKind: obj.componentKind || undefined,
@@ -80,7 +82,10 @@ function serializeObject(obj, cw, ch) {
 export function serializeObjects(fabricCanvas) {
   const cw = fabricCanvas.width;
   const ch = fabricCanvas.height;
-  return fabricCanvas.getObjects().map((o) => serializeObject(o, cw, ch));
+  return fabricCanvas
+    .getObjects()
+    .filter((o) => o.customType !== 'eraser') // гумата е операция, не съдържание
+    .map((o) => serializeObject(o, cw, ch));
 }
 
 export function analyzeCanvas(fabricCanvas) {
