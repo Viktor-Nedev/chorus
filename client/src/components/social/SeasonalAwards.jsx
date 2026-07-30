@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../Icon';
 import { useSocial } from '../../hooks/useSocial';
 import { useArtworkStore } from '../../hooks/useArtworkStore';
 
@@ -75,14 +76,14 @@ export function SeasonalAwards({ me, toast }) {
       {/* Победители от миналия сезон */}
       {data.pastWinners && Object.keys(data.pastWinners.winners).length > 0 && (
         <div className="mb-8 rounded-xl border border-ink-line bg-ink-soft/40 p-4">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-gray-500 mb-3">🏆 {data.pastWinners.label} Champions</div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-gray-500 mb-3"><Icon glyph="🏆" /> {data.pastWinners.label} Champions</div>
           <div className="flex flex-wrap gap-4">
             {data.categories.map((cat) => {
               const w = data.pastWinners.winners[cat.key];
               if (!w) return null;
               return (
                 <div key={cat.key} className="flex items-center gap-2 text-sm">
-                  <span className="text-lg">{cat.icon}</span>
+                  <span className="text-lg"><Icon glyph={cat.icon} size={20} /></span>
                   <span className="text-gray-400">{cat.label}:</span>
                   <span className="text-white font-medium">{w.username}</span>
                   {w.votes != null && <span className="text-[11px] text-gray-600">({w.votes} votes)</span>}
@@ -98,13 +99,13 @@ export function SeasonalAwards({ me, toast }) {
         {data.categories.map((cat) => (
           <div key={cat.key} className="rounded-2xl border border-ink-line bg-ink-soft/40 overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-ink-line">
-              <span className="text-2xl">{cat.icon}</span>
+              <span className="text-2xl"><Icon glyph={cat.icon} size={26} /></span>
               <div className="flex-1">
                 <div className="font-display font-bold text-white">{cat.label}</div>
                 <div className="text-[11px] text-gray-500">{cat.entries.length} entries</div>
               </div>
               {cat.myEntry ? (
-                <span className="text-[11px] text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 rounded-full px-3 py-1">✓ Entered</span>
+                <span className="text-[11px] text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 rounded-full px-3 py-1"><Icon glyph="✓" /> Entered</span>
               ) : (
                 <button
                   onClick={() => openEnter(cat)}
@@ -138,7 +139,7 @@ export function SeasonalAwards({ me, toast }) {
                             onClick={() => doVote(cat.key, e.userId)}
                             className={`shrink-0 rounded px-2 py-1 text-[10px] border transition ${isMyVote ? 'bg-accent-violet/25 border-accent-violet text-white' : 'border-ink-line text-gray-400 hover:text-white hover:border-gray-500'}`}
                           >
-                            {isMyVote ? '✓' : 'Vote'}
+                            <IconText size={14}>{isMyVote ? '✓' : 'Vote'}</IconText>
                           </button>
                         )}
                       </div>
@@ -155,7 +156,7 @@ export function SeasonalAwards({ me, toast }) {
       {enterCat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEnterCat(null)}>
           <div className="w-full max-w-2xl rounded-2xl bg-ink-soft border border-ink-line p-6 animate-slide-up max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-display font-bold text-lg text-white mb-1">{enterCat.icon} Enter {enterCat.label}</h2>
+            <h2 className="font-display font-bold text-lg text-white mb-1"><Icon glyph={enterCat.icon} size={18} /> Enter {enterCat.label}</h2>
             <p className="text-xs text-gray-500 mb-4">Pick one of your {enterCat.mode} artworks.</p>
             {myWorks.length === 0 ? (
               <p className="text-sm text-gray-500 py-8 text-center">No eligible artworks — make one in the matching mode first.</p>

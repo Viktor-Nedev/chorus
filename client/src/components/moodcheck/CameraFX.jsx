@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Icon } from '../Icon';
 import {
   luminance, thermalLUT, rainbowLUT, pointCloudColor, lensRectFromHands, EFFECTS, SPECIAL_EFFECTS,
   nightvisionColor, sepiaColor, invertColor, posterizeColor, duotoneColor,
@@ -256,7 +257,7 @@ export function CameraFX({ videoRef, handsBufRef, handCountRef, effect, mode, on
         ctx.save();
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, H - 44, W, 44);
         ctx.fillStyle = 'rgba(180,255,200,0.9)'; ctx.font = '14px monospace'; ctx.textAlign = 'center';
-        ctx.fillText('✋ Frame the effect with your hands', W / 2, H - 18);
+        ctx.fillText('Frame the effect with your hands', W / 2, H - 18);
         ctx.restore();
       }
 
@@ -324,7 +325,7 @@ function drawScanline(ctx, r) {
 
 function drawLabel(ctx, effect, x, y) {
   const e = EFFECTS.find((k) => k.id === effect);
-  const text = `${e?.icon || '◆'} ${(e?.label || effect).toUpperCase()}`;
+  const text = (e?.label || effect).toUpperCase();
   ctx.save();
   ctx.font = '12px monospace';
   const w = ctx.measureText(text).width + 16;

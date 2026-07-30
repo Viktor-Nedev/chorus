@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Icon } from '../Icon';
 import { ParticleCam } from '../ParticleCam';
 
 const hsl = (c) => (c ? `hsl(${c.h}, ${c.s}%, ${c.l}%)` : '#888');
@@ -67,9 +68,7 @@ export function CamStrip({ socket, videoRef, users, myNickname, myColor, camAvat
           {socket.camFrames[u.userId] ? (
             <img src={socket.camFrames[u.userId]} alt={u.nickname} className="w-32 aspect-[4/3] object-cover bg-ink" />
           ) : (
-            <div className="w-32 aspect-[4/3] bg-ink flex items-center justify-center text-gray-600 text-xl">
-              📷
-            </div>
+            <div className="w-32 aspect-[4/3] bg-ink flex items-center justify-center text-gray-600 text-xl"><Icon glyph="📷" /></div>
           )}
           <span className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[9px] text-white truncate">
             {u.nickname}

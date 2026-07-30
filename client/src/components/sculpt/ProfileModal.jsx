@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../Icon';
 
 // 2D рисувателен модал за Lathe (полу-профил, върти се около оста) и
 // Extrude (затворена форма, изтегля се в дълбочина). Връща нормализирани
@@ -96,7 +97,7 @@ export function ProfileModal({ mode, onConfirm, onCancel }) {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
       <div className="rounded-2xl bg-ink-soft border border-ink-line p-5 animate-slide-up">
         <h2 className="font-display font-bold text-white mb-1">
-          {isLathe ? '🏺 Lathe — draw a half profile' : '⬒ Extrude — draw a closed shape'}
+          <IconText size={15}>{isLathe ? '🏺 Lathe — draw a half profile' : '⬒ Extrude — draw a closed shape'}</IconText>
         </h2>
         <p className="text-[11px] text-gray-500 mb-3">
           {isLathe

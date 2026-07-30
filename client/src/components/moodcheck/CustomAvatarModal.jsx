@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Icon } from '../Icon';
 import { clampAvatar, toRuntime, ACCESSORY_TYPES } from './avatars';
 
 // Страничен drawer (дясно) — сцената остава видима зад него = ЖИВ PREVIEW.
@@ -78,7 +79,7 @@ export function CustomAvatarModal({ initial, onPreview, onSave, onCancel, onDraw
               <label className="flex-1">
                 <span className="text-[10px] uppercase tracking-[0.15em] text-gray-500 block mb-1">Accessory</span>
                 <select value={params.accessory} onChange={(e) => setParams((p) => ({ ...p, accessory: e.target.value }))} className="w-full rounded-lg bg-ink border border-ink-line px-2 py-1.5 text-xs text-white focus:outline-none">
-                  {ACCESSORY_TYPES.map((a) => <option key={a} value={a}>{a === 'tongue' ? '👅 tongue' : a}</option>)}
+                  {ACCESSORY_TYPES.map((a) => <option key={a} value={a}>{a}</option>)}
                 </select>
               </label>
             )}
@@ -89,7 +90,7 @@ export function CustomAvatarModal({ initial, onPreview, onSave, onCancel, onDraw
           </div>
 
           <button onClick={onDrawInstead} className="w-full rounded-lg border border-ink-line py-2 text-xs text-gray-300 hover:bg-ink-line/50 transition">
-            🎨 Draw your own instead
+            <Icon glyph="🎨" /> Draw your own instead
           </button>
         </div>
       </div>

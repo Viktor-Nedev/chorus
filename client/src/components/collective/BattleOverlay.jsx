@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Icon } from '../Icon';
 
 const THEME_IDEAS = [
   'A city that floats', 'Your happiest memory', 'Sound made visible',
@@ -41,7 +42,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
           onClick={() => setShowStart(true)}
           className="rounded-lg border border-yellow-700 bg-yellow-950/40 px-3 py-1.5 text-xs text-yellow-300 hover:bg-yellow-900/40 transition"
         >
-          ⚔ Draw Battle
+          <Icon glyph="⚔" /> Draw Battle
         </button>
       )}
 
@@ -49,7 +50,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
       {showStart && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="max-w-sm w-full mx-4 rounded-2xl bg-ink-soft border border-ink-line p-6 animate-slide-up">
-            <h2 className="font-display font-bold text-lg text-white mb-1">⚔ Draw Battle</h2>
+            <h2 className="font-display font-bold text-lg text-white mb-1"><Icon glyph="⚔" /> Draw Battle</h2>
             <p className="text-[11px] text-gray-500 mb-4">
               Everyone draws the theme on their own layer. Then the room votes.
             </p>
@@ -67,7 +68,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
               onClick={() => setTheme(THEME_IDEAS[Math.floor(Math.random() * THEME_IDEAS.length)])}
               className="text-[11px] text-accent-cyan hover:underline mb-4"
             >
-              🎲 Random theme
+              <Icon glyph="🎲" /> Random theme
             </button>
             <div className="flex gap-1.5 mb-5">
               {[60, 120, 180].map((s) => (
@@ -109,7 +110,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
       {/* Банер по време на рисуване */}
       {battle?.phase === 'drawing' && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-2xl bg-ink-soft/90 border border-yellow-700 backdrop-blur px-6 py-3 text-center animate-slide-up">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-gray-500">⚔ Draw battle — draw now!</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-gray-500"><Icon glyph="⚔" /> Draw battle — draw now!</div>
           <div className="font-display font-bold text-white text-lg my-0.5">“{battle.theme}”</div>
           <CountdownBadge endsAt={battle.endsAt} />
         </div>
@@ -117,7 +118,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
 
       {battle?.phase === 'collect' && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-2xl bg-ink-soft/90 border border-ink-line backdrop-blur px-6 py-3 text-sm text-gray-300 animate-fade-in">
-          🖼 Time's up! Collecting artworks…
+          <Icon glyph="🖼" /> Time's up! Collecting artworks…
         </div>
       )}
 
@@ -151,7 +152,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
                   >
                     <img src={e.png} alt={e.nickname} className="w-full aspect-video object-cover bg-ink" />
                     <div className="px-2.5 py-1.5 text-xs text-gray-300">
-                      {mine ? 'you' : e.nickname} {chosen && '· ✓ your vote'}
+                      {mine ? 'you' : e.nickname} {chosen && <> · <Icon glyph="✓" size={12} /> your vote</>}
                     </div>
                   </button>
                 );
@@ -169,7 +170,7 @@ export function BattleOverlay({ socket, isCreator, myId, usersCount }) {
               <p className="text-sm text-gray-400">Battle ended — not enough entries to vote.</p>
             ) : (
               <>
-                <div className="text-5xl mb-3">🏆</div>
+                <div className="text-5xl mb-3"><Icon glyph="🏆" /></div>
                 <div className="font-display font-extrabold text-2xl text-white">
                   {battle.result?.winnerId === myId ? 'You win!' : battle.result?.winnerNickname}
                 </div>

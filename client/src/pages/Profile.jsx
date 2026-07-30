@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { GalleryCard } from '../components/GalleryCard';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
@@ -154,7 +155,7 @@ export function Profile({ navigate }) {
           onClick={() => navigate('landing')}
           className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
         >
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
 
         {/* ── Header ── */}
@@ -174,7 +175,7 @@ export function Profile({ navigate }) {
                 className="rounded-full border border-accent-violet/50 bg-accent-violet/10 px-3 py-1 text-xs text-accent-violet font-bold"
                 title={nextLevel ? `${nextLevel.min - (stats?.points ?? 0)} points to ${nextLevel.title}` : 'Max level!'}
               >
-                {level.icon} {level.title}
+                <Icon glyph={level.icon} size={14} /> {level.title}
               </span>
             </div>
             <p className="mt-1 text-sm text-gray-500">
@@ -190,7 +191,7 @@ export function Profile({ navigate }) {
               onClick={() => navigate('social')}
               className="rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 px-4 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
             >
-              🖧 Social
+              <Icon glyph="🖧" /> Social
             </button>
             <button
               onClick={async () => {
@@ -208,7 +209,7 @@ export function Profile({ navigate }) {
         <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-4">
           {statCards.map((s) => (
             <div key={s.label} className="rounded-xl border border-ink-line bg-ink-soft/50 p-5">
-              <div className="text-2xl">{s.icon}</div>
+              <div className="text-2xl"><Icon glyph={s.icon} size={26} /></div>
               <div className="mt-2 font-display font-extrabold text-3xl text-white">{s.value}</div>
               <div className="text-[11px] uppercase tracking-[0.15em] text-gray-500">{s.label}</div>
             </div>
@@ -241,12 +242,12 @@ export function Profile({ navigate }) {
                     : 'border-ink-line bg-ink-soft/30 opacity-50'
                 }`}
               >
-                <span className={`text-2xl ${unlocked ? '' : 'grayscale'}`}>{a.icon}</span>
+                <span className={`text-2xl ${unlocked ? '' : 'grayscale'}`}><Icon glyph={a.icon} size={26} /></span>
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white truncate">{a.title}</div>
                   <div className="text-[10px] text-gray-500">{a.desc}</div>
                 </div>
-                {unlocked && <span className="ml-auto text-accent-violet">✓</span>}
+                {unlocked && <span className="ml-auto text-accent-violet"><Icon glyph="✓" /></span>}
               </div>
             );
           })}
@@ -262,13 +263,13 @@ export function Profile({ navigate }) {
               </p>
               <label className="flex items-center gap-3 py-1.5 cursor-pointer">
                 <input type="radio" name="cam" checked={!camAvatarId} onChange={() => setCamChoice(null)} className="accent-accent-violet" />
-                <span className="text-sm text-gray-200">📷 Real camera</span>
+                <span className="text-sm text-gray-200"><Icon glyph="📷" /> Real camera</span>
               </label>
               {avatars.map((a) => (
                 <div key={a.id} className="flex items-center gap-3 py-1.5">
                   <input type="radio" name="cam" checked={camAvatarId === a.id} onChange={() => setCamChoice(a.id)} className="accent-accent-violet" />
                   <span className="w-4 h-4 rounded-full shrink-0" style={{ background: a.fixedColor }} />
-                  <span className="text-sm text-gray-200 flex-1 truncate">{a.emoji} {a.label}</span>
+                  <span className="text-sm text-gray-200 flex-1 truncate"><Icon glyph={a.emoji} size={16} /> {a.label}</span>
                   <span className="text-[10px] text-gray-600 uppercase">{a.type}</span>
                   <button onClick={() => removeAvatar(a.id)} className="text-gray-500 hover:text-red-400 text-xs">Delete</button>
                 </div>
@@ -290,7 +291,7 @@ export function Profile({ navigate }) {
                       style={{ height: '100%', background: EMOTION_HEX[s.dominantEmotion] || EMOTION_HEX.neutral, opacity: 0.85 }}
                       title={`${EMOTION_CONFIGS[s.dominantEmotion]?.label} · ${new Date(s.createdAt).toLocaleDateString()}`}
                     />
-                    <span className="text-sm">{EMOTION_CONFIGS[s.dominantEmotion]?.emoji}</span>
+                    <span className="text-sm"><Icon glyph={EMOTION_CONFIGS[s.dominantEmotion]?.emoji} size={16} /></span>
                   </div>
                 ))}
               </div>
@@ -310,7 +311,7 @@ export function Profile({ navigate }) {
             onClick={() => navigate('gallery')}
             className="text-[11px] uppercase tracking-[0.2em] text-gray-500 hover:text-white transition"
           >
-            Full archive →
+            Full archive <Icon glyph="→" />
           </button>
         </div>
 
@@ -350,7 +351,7 @@ export function Profile({ navigate }) {
                 onClick={() => navigate('gallery')}
                 className="text-[11px] uppercase tracking-[0.2em] text-gray-500 hover:text-white transition"
               >
-                Full archive →
+                Full archive <Icon glyph="→" />
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-16">

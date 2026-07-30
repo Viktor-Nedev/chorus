@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react';
+import { Icon } from '../../Icon';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { buildFormations } from './formations';
@@ -114,7 +115,7 @@ export function ParticleSculpture({ drawCount, pointer, scrollProgressRef, reduc
     uniforms.uColorBase.value.copy(PALETTE[floorIdx].base).lerp(PALETTE[nextIdx].base, quick);
     uniforms.uColorDim.value.copy(PALETTE[floorIdx].dim).lerp(PALETTE[nextIdx].dim, quick);
 
-    // Мишка → world координати на z=0 равнината
+    // Мишка <Icon glyph="→" /> world координати на z=0 равнината
     pointer.smoothed.current.x = THREE.MathUtils.damp(
       pointer.smoothed.current.x, pointer.target.current.x, 2.5, delta
     );

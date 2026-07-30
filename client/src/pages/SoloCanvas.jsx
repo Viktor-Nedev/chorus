@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { P5Canvas } from '../components/P5Canvas';
 import { VideoProcessor } from '../components/VideoProcessor';
 import { EmotionSidebar } from '../components/HUD';
@@ -756,15 +757,13 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
             className="rounded-md bg-cyan-600/80 hover:bg-cyan-500 text-white text-xs px-2 py-1 transition"
             title="Place (Enter)"
           >
-            ✓ Place
+            <Icon glyph="✓" /> Place
           </button>
           <button
             onClick={cancelFloating}
             className="rounded-md border border-ink-line text-gray-300 hover:bg-ink-line/50 text-xs px-2 py-1 transition"
             title="Cancel (Esc)"
-          >
-            ✕
-          </button>
+          ><Icon glyph="✕" /></button>
         </div>
       )}
 
@@ -774,7 +773,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           onClick={requestExit}
           className="text-sm text-gray-400 hover:text-white transition shrink-0"
         >
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
 
         {editingTitle ? (
@@ -799,28 +798,28 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
         <div className="ml-auto flex items-center gap-1.5 flex-wrap justify-end overflow-x-auto">
           {/* History */}
-          <button onClick={() => undoRef.current?.()} title="Undo (Ctrl+Z)" className={headerIconBtn}>↶</button>
-          <button onClick={() => redoRef.current?.()} title="Redo (Ctrl+Y)" className={headerIconBtn}>↷</button>
+          <button onClick={() => undoRef.current?.()} title="Undo (Ctrl+Z)" className={headerIconBtn}><Icon glyph="↶" /></button>
+          <button onClick={() => redoRef.current?.()} title="Redo (Ctrl+Y)" className={headerIconBtn}><Icon glyph="↷" /></button>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
           {/* View */}
-          <button onClick={zoomOut} title="Zoom out" className={headerIconBtn}>🔍−</button>
+          <button onClick={zoomOut} title="Zoom out" className={headerIconBtn}><Icon glyph="🔍" /><Icon glyph="−" /></button>
           <button onClick={zoomReset} title={`Reset zoom (${Math.round(zoom * 100)}%)`} className={`${headerIconBtn} w-12 text-[11px]`}>
             {Math.round(zoom * 100)}%
           </button>
-          <button onClick={zoomIn} title="Zoom in" className={headerIconBtn}>🔍+</button>
+          <button onClick={zoomIn} title="Zoom in" className={headerIconBtn}><Icon glyph="🔍" />+</button>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
           {/* Transform */}
-          <button onClick={() => handleRotate(-1)} title="Rotate canvas 90° counter-clockwise" className={headerIconBtn}>⟲</button>
-          <button onClick={() => handleRotate(1)} title="Rotate canvas 90° clockwise" className={headerIconBtn}>⟳</button>
+          <button onClick={() => handleRotate(-1)} title="Rotate canvas 90° counter-clockwise" className={headerIconBtn}><Icon glyph="⟲" /></button>
+          <button onClick={() => handleRotate(1)} title="Rotate canvas 90° clockwise" className={headerIconBtn}><Icon glyph="⟳" /></button>
           <div className="relative">
             <button
               onClick={() => setSizeMenuOpen((v) => !v)}
               title="Canvas size — centred artboard with a visible frame"
               className="flex items-center gap-1 rounded-lg border border-ink-line bg-ink-soft/70 backdrop-blur h-8 px-2 text-[11px] hover:border-gray-500 transition"
             >
-              <span className="text-gray-400">⬚</span>
+              <span className="text-gray-400"><Icon glyph="⬚" /></span>
               <span className="tabular-nums text-gray-100">{Math.round(canvasSize.w)}×{Math.round(canvasSize.h)}</span>
             </button>
             {sizeMenuOpen && (
@@ -848,7 +847,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
             title="Symmetry / Mirror mode — mirrors every stroke across the vertical center"
             className={`relative ${headerIconBtn} ${symmetryEnabled ? 'border-cyan-400 bg-cyan-950/50 text-cyan-200 mode-glow-cyan' : ''}`}
           >
-            🪞
+            <Icon glyph="🪞" />
             {symmetryEnabled && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 glow-pulse" />
             )}
@@ -858,7 +857,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
             title="Emotion color — the brush color keeps following your emotion while on"
             className={`relative ${headerIconBtn} ${emotionColorMode ? 'border-cyan-400 bg-cyan-950/50 text-cyan-200 mode-glow-cyan' : ''}`}
           >
-            🎨
+            <Icon glyph="🎨" />
             {emotionColorMode && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 glow-pulse" />
             )}
@@ -867,9 +866,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
             onClick={() => setShowInstructions(true)}
             title="Instructions — how to draw, voice commands, shortcuts"
             className={headerIconBtn}
-          >
-            📖
-          </button>
+          ><Icon glyph="📖" /></button>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
           {/* Voice + theme */}
@@ -882,7 +879,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                 : 'border-ink-line text-gray-300 hover:bg-ink-line/50 bg-ink-soft/70'
             }`}
           >
-            {voiceEnabled ? '🎙 Listening…' : '🎙 Voice'}
+            <IconText size={14}>{voiceEnabled ? '🎙 Listening…' : '🎙 Voice'}</IconText>
           </button>
           <span className="w-px h-5 bg-ink-line mx-0.5" />
 
@@ -946,9 +943,9 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                     : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
                 }`}
               >
-                {icon}
+                <Icon glyph={icon} size={22} />
                 {(isLines || isShapes) && (
-                  <span className="absolute bottom-0.5 right-1 text-[8px] text-gray-500 leading-none">▸</span>
+                  <span className="absolute bottom-0.5 right-1 text-[8px] text-gray-500 leading-none"><Icon glyph="▸" /></span>
                 )}
               </button>
             );
@@ -999,7 +996,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
           title="Add an image — pick a file (or paste with Ctrl+V)"
           className="w-[88px] h-8 rounded-lg text-xs flex items-center justify-center gap-1 text-gray-300 border border-ink-line hover:bg-ink-line/50 transition"
         >
-          🖼 Image
+          <Icon glyph="🖼" /> Image
         </button>
 
         <div className="w-16 border-t border-ink-line" />
@@ -1013,9 +1010,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                 ? 'bg-green-600/30 border border-green-500 text-white'
                 : 'text-gray-400 hover:bg-ink-line/50 border border-transparent'
             }`}
-          >
-            👁
-          </button>
+          ><Icon glyph="👁" /></button>
           <button
             onClick={() => setHandsEnabled((v) => !v)}
             title="Toggle hand tracking"
@@ -1024,9 +1019,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                 ? 'bg-cyan-600/30 border border-cyan-500 text-white'
                 : 'text-gray-400 hover:bg-ink-line/50 border border-transparent'
             }`}
-          >
-            🖐
-          </button>
+          ><Icon glyph="🖐" /></button>
         </div>
 
         {/* Hand Draw контроли — на отделни редове, за да не се режат */}
@@ -1041,7 +1034,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'bg-green-600/20 border border-green-600/60 text-green-300'
               }`}
             >
-              {handPaused ? '▶ Resume' : '⏸ Pause'}
+              <IconText size={14}>{handPaused ? '▶ Resume' : '⏸ Pause'}</IconText>
             </button>
             <button
               onClick={() => setHandSmooth((v) => !v)}
@@ -1052,7 +1045,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
               }`}
             >
-              {handSmooth ? '⚡ Smooth' : '〜 Raw'}
+              <IconText size={14}>{handSmooth ? '⚡ Smooth' : '〜 Raw'}</IconText>
             </button>
           </div>
         )}
@@ -1069,7 +1062,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
               }`}
             >
-              🎨 Paint
+              <Icon glyph="🎨" /> Paint
             </button>
             <button
               onClick={() => setVoiceMode('burst')}
@@ -1080,7 +1073,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 border border-ink-line hover:bg-ink-line/50'
               }`}
             >
-              ✦ Burst
+              <Icon glyph="✦" /> Burst
             </button>
           </div>
         )}
@@ -1100,7 +1093,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
               }`}
             >
-              {s.icon}
+              <Icon glyph={s.icon} size={20} />
             </button>
           ))}
         </aside>
@@ -1119,7 +1112,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
               }`}
             >
-              {s.icon}
+              <Icon glyph={s.icon} size={20} />
             </button>
           ))}
         </aside>
@@ -1138,7 +1131,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
               }`}
             >
-              {s.icon}
+              <Icon glyph={s.icon} size={20} />
             </button>
           ))}
         </aside>
@@ -1169,9 +1162,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
               className={`w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center transition ${
                 dictating ? 'border-red-500 bg-red-950/40 text-red-300' : 'border-ink-line text-gray-300 hover:text-white'
               }`}
-            >
-              🎙
-            </button>
+            ><Icon glyph="🎙" /></button>
           </div>
           <div className="flex gap-2">
             <button
@@ -1212,21 +1203,21 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
       {/* Подсказка при изключен live */}
       {!liveEnabled && !voiceEnabled && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-gray-500 bg-ink-soft/70 border border-ink-line rounded-full px-4 py-1.5 backdrop-blur">
-          Press 👁 to paint with your face and voice · {ready ? 'models ready' : 'models load on first use'}
+          Press <Icon glyph="👁" /> to paint with your face and voice · {ready ? 'models ready' : 'models load on first use'}
         </div>
       )}
 
       {/* Подсказка специално за Hand Draw, ако камерата/ръката са изключени */}
       {tool === 'HAND' && (!liveEnabled || !handsEnabled) && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-cyan-300 bg-ink-soft/70 border border-cyan-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
-          Enable 👁 and 🖐 to draw with your hand
+          Enable <Icon glyph="👁" /> and <Icon glyph="🖐" /> to draw with your hand
         </div>
       )}
 
       {/* Подсказка за Hand Draw, докато е активен и live-ready */}
       {tool === 'HAND' && liveEnabled && handsEnabled && !voiceEnabled && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-[11px] text-cyan-300 bg-ink-soft/70 border border-cyan-900/50 rounded-full px-4 py-1.5 backdrop-blur animate-fade-in">
-          Move your hand to paint · open palm (✋) or "stop" to lift the pen · close it again to resume
+          Move your hand to paint · open palm (<Icon glyph="✋" />) or "stop" to lift the pen · close it again to resume
         </div>
       )}
 
@@ -1309,7 +1300,7 @@ export function SoloCanvas({ navigate, artworkToEdit, onArtworkConsumed }) {
 
       {toast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-full bg-ink-soft border border-ink-line px-5 py-2 text-sm text-white backdrop-blur animate-fade-in">
-          {toast}
+          <IconText size={15}>{toast}</IconText>
         </div>
       )}
     </div>

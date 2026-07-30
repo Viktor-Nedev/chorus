@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { useAuth } from '../hooks/useAuth';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useCompetitions } from '../hooks/useCompetitions';
@@ -87,7 +88,7 @@ export function Compete({ navigate, embedded = false }) {
             onClick={() => navigate('landing')}
             className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
           >
-            ← Back
+            <Icon glyph="←" /> Back
           </button>
         )}
 
@@ -211,7 +212,7 @@ export function Compete({ navigate, embedded = false }) {
 
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 rounded-full bg-ink-soft border border-ink-line px-5 py-2 text-sm text-white backdrop-blur animate-fade-in">
-          {toast}
+          <IconText size={15}>{toast}</IconText>
         </div>
       )}
     </div>
@@ -229,7 +230,7 @@ function CompetitionCard({ comp, me, expanded, onToggle, onEnter, onVote }) {
             by {comp.createdBy.username} · {comp.entries.length} entries · {comp.totalVotes} votes ·{' '}
             {comp.ended ? (
               comp.winner ? (
-                <span className="text-yellow-400">🏆 {comp.winner.username}</span>
+                <span className="text-yellow-400"><Icon glyph="🏆" /> {comp.winner.username}</span>
               ) : (
                 'no winner'
               )
@@ -249,7 +250,7 @@ function CompetitionCard({ comp, me, expanded, onToggle, onEnter, onVote }) {
             Enter
           </span>
         )}
-        <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
+        <span className="text-gray-600"><Icon glyph={expanded ? '▲' : '▼'} /></span>
       </button>
 
       {expanded && (
@@ -275,7 +276,7 @@ function CompetitionCard({ comp, me, expanded, onToggle, onEnter, onVote }) {
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] text-white truncate">{e.title}</div>
                         <div className="text-[10px] text-gray-500 truncate">
-                          {isWinner && '🏆 '}
+                          {isWinner && <><Icon glyph="🏆" size={12} /> </>}
                           {e.username} · {e.votes} vote{e.votes === 1 ? '' : 's'}
                         </div>
                       </div>
@@ -288,7 +289,7 @@ function CompetitionCard({ comp, me, expanded, onToggle, onEnter, onVote }) {
                               : 'border-ink-line text-gray-400 hover:text-white hover:border-gray-500'
                           }`}
                         >
-                          {isMyVote ? '✓ Voted' : 'Vote'}
+                          <IconText size={14}>{isMyVote ? '✓ Voted' : 'Vote'}</IconText>
                         </button>
                       )}
                     </div>

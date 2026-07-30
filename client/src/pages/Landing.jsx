@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { Icon } from '../components/Icon';
 import gsap from 'gsap';
 import Lenis from 'lenis';
 import { HeroScene } from '../components/landing/HeroScene';
@@ -135,7 +136,7 @@ function ModePanel({ index, title, tagline, copy, accent, onClick, wide }) {
         </div>
         <p className="mt-3 text-[13px] text-gray-400 leading-relaxed">{copy}</p>
         <div className="mt-4 flex items-center gap-3 text-[11px] tracking-[0.25em] uppercase text-gray-500 group-hover:text-white transition-colors duration-500">
-          Enter <span className="inline-block transition-transform duration-500 group-hover:translate-x-2">→</span>
+          Enter <span className="inline-block transition-transform duration-500 group-hover:translate-x-2"><Icon glyph="→" /></span>
         </div>
       </div>
     </button>
@@ -558,7 +559,7 @@ export function Landing({ navigate }) {
 
               <div className="mt-12 pt-5 border-t border-ink-line flex flex-col sm:flex-row items-center justify-between gap-2">
                 <span className="text-[11px] text-gray-600">© 2026 CHORUS. All rights reserved.</span>
-                <span className="text-[11px] text-gray-700">Made with voice, gestures & a lot of particles ✦</span>
+                <span className="text-[11px] text-gray-700">Made with voice, gestures & a lot of particles <Icon glyph="✦" /></span>
               </div>
             </div>
           </footer>

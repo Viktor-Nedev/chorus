@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../Icon';
 import { useSocial } from '../../hooks/useSocial';
 import { PostCard } from './PostCard';
 import { PostComposer } from './PostComposer';
@@ -67,7 +68,7 @@ export function Feed({ me, navigate }) {
                 onClick={() => setSort(s)}
                 className={`px-3 py-1.5 text-xs transition ${sort === s ? 'bg-accent-cyan/20 text-white' : 'text-gray-400 hover:text-white'}`}
               >
-                {label}
+                <IconText size={13}>{label}</IconText>
               </button>
             ))}
           </div>
@@ -81,7 +82,7 @@ export function Feed({ me, navigate }) {
             onClick={() => setShowComposer(true)}
             className="rounded-lg bg-accent-violet/85 px-3 py-1.5 text-xs font-bold text-ink hover:bg-accent-violet transition"
           >
-            ＋ Share
+            <Icon glyph="＋" /> Share
           </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">

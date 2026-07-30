@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 
 const LOADING_MESSAGES = [
   'Reading your colours…',
@@ -72,7 +73,7 @@ export function PoemOverlay({ poem, loading, onClose }) {
         ) : (
           <pre className="whitespace-pre-wrap font-body text-[15px] leading-relaxed text-gray-100 min-h-[3rem]">
             {typed}
-            {!done && <span className="poem-caret">▍</span>}
+            {!done && <span className="poem-caret"><Icon glyph="▍" /></span>}
           </pre>
         )}
 

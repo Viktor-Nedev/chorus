@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import Split from 'split.js';
 import { ForgeCanvas, DEFAULT_PAGE_HEIGHT } from '../components/webforge/ForgeCanvas';
 import { RightPanel } from '../components/webforge/RightPanel';
@@ -944,7 +945,7 @@ export function WebForge({ navigate }) {
           onClick={() => navigate('landing')}
           className="text-sm text-gray-400 hover:text-white transition"
         >
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
         <span className="font-display font-extrabold text-sm text-white tracking-[0.2em]">
           WEBFORGE
@@ -965,7 +966,7 @@ export function WebForge({ navigate }) {
             className="text-xs text-gray-400 hover:text-white transition"
             title="Click to rename"
           >
-            {projectName} ✏
+            {projectName} <Icon glyph="✏" />
           </button>
         )}
 
@@ -979,9 +980,7 @@ export function WebForge({ navigate }) {
                 ? 'border-accent-cyan bg-accent-cyan/15 text-accent-cyan'
                 : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
             }`}
-          >
-            👁
-          </button>
+          ><Icon glyph="👁" /></button>
           <button
             onClick={() => {
               if (!voiceCommandsOn && !voiceSupported) {
@@ -996,9 +995,7 @@ export function WebForge({ navigate }) {
                 ? 'border-accent-violet bg-accent-violet/15 text-accent-violet'
                 : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
             }`}
-          >
-            🎙
-          </button>
+          ><Icon glyph="🎙" /></button>
           <button
             onClick={() => setEmotionColor((v) => !v)}
             title="Emotion colour — the brush colour follows your mood"
@@ -1007,16 +1004,12 @@ export function WebForge({ navigate }) {
                 ? 'border-yellow-400 bg-yellow-400/15 text-yellow-300'
                 : 'border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50'
             }`}
-          >
-            🎭
-          </button>
+          ><Icon glyph="🎭" /></button>
           <button
             onClick={() => setShowBook(true)}
             title="Field guide"
             className="w-8 h-8 rounded-lg border border-ink-line text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"
-          >
-            📖
-          </button>
+          ><Icon glyph="📖" /></button>
           <select
             value={stylePreset}
             onChange={(e) => setStylePreset(e.target.value)}
@@ -1024,7 +1017,7 @@ export function WebForge({ navigate }) {
             className="h-8 rounded-lg bg-ink border border-ink-line px-2 text-xs text-gray-300 focus:outline-none focus:border-accent-violet"
           >
             {STYLE_PRESETS.map((s) => (
-              <option key={s} value={s}>🎨 {s}</option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
           <button
@@ -1039,14 +1032,14 @@ export function WebForge({ navigate }) {
             disabled={wf.analyzing}
             className="rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 px-3 h-8 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition disabled:opacity-50"
           >
-            {wf.analyzing ? '🔍 Analyzing…' : '🔍 Analyze'}
+            <IconText size={14}>{wf.analyzing ? '🔍 Analyzing…' : '🔍 Analyze'}</IconText>
           </button>
           <button
             onClick={handleGenerate}
             disabled={wf.generating}
             className="rounded-lg bg-accent-violet/80 px-4 h-8 text-xs font-bold text-ink hover:bg-accent-violet transition disabled:opacity-50"
           >
-            {wf.generating ? '⚙ Generating…' : '⚡ Generate Website'}
+            <IconText size={14}>{wf.generating ? '⚙ Generating…' : '⚡ Generate Website'}</IconText>
           </button>
         </div>
       </header>
@@ -1054,16 +1047,14 @@ export function WebForge({ navigate }) {
       {/* ── ERROR BANNER ── */}
       {errorBanner && (
         <div className="shrink-0 flex items-center gap-3 px-4 py-2 bg-red-950/50 border-b border-red-900 text-xs text-red-300 animate-fade-in">
-          <span className="flex-1">⚠ {errorBanner.msg}</span>
+          <span className="flex-1"><Icon glyph="⚠" /> {errorBanner.msg}</span>
           <button
             onClick={() => (errorBanner.retry === 'generate' ? handleGenerate() : runAnalyze())}
             className="rounded border border-red-700 px-3 py-1 text-red-200 hover:bg-red-900/50 transition"
           >
-            ↻ Retry
+            <Icon glyph="↻" /> Retry
           </button>
-          <button onClick={() => setErrorBanner(null)} className="text-red-400 hover:text-white px-1">
-            ✕
-          </button>
+          <button onClick={() => setErrorBanner(null)} className="text-red-400 hover:text-white px-1"><Icon glyph="✕" /></button>
         </div>
       )}
 
@@ -1081,9 +1072,7 @@ export function WebForge({ navigate }) {
                 }}
                 title="Show tools ( [ )"
                 className="text-gray-500 hover:text-white transition text-xs"
-              >
-                ›
-              </button>
+              ><Icon glyph="›" /></button>
               <span className="mt-2 text-[9px] text-gray-600 [writing-mode:vertical-rl]">tools</span>
             </aside>
           )}
@@ -1098,9 +1087,7 @@ export function WebForge({ navigate }) {
               }}
               title="Hide tools ( [ ) — frees up canvas space"
               className="w-10 h-6 rounded text-gray-500 hover:text-white hover:bg-ink-line/50 transition text-xs"
-            >
-              ‹
-            </button>
+            ><Icon glyph="‹" /></button>
             {TOOLS.map((t) => (
               <button
                 key={t.id}
@@ -1112,7 +1099,7 @@ export function WebForge({ navigate }) {
                     : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border border-transparent'
                 }`}
               >
-                {t.icon}
+                <Icon glyph={t.icon} size={20} />
               </button>
             ))}
 
@@ -1147,32 +1134,24 @@ export function WebForge({ navigate }) {
                   ? 'bg-accent-violet/25 border-accent-violet text-white'
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border-transparent'
               }`}
-            >
-              🖌
-            </button>
+            ><Icon glyph="🖌" /></button>
 
             <div className="w-8 border-t border-ink-line my-1" />
             <button
               onClick={() => canvasApiRef.current?.undo()}
               title="Undo"
               className="w-10 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"
-            >
-              ↶
-            </button>
+            ><Icon glyph="↶" /></button>
             <button
               onClick={() => canvasApiRef.current?.redo()}
               title="Redo"
               className="w-10 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"
-            >
-              ↷
-            </button>
+            ><Icon glyph="↷" /></button>
             <button
               onClick={() => canvasApiRef.current?.clear()}
               title="Clear canvas"
               className="w-10 h-8 rounded-lg text-gray-400 hover:text-red-400 hover:bg-ink-line/50 transition text-sm"
-            >
-              🗑
-            </button>
+            ><Icon glyph="🗑" /></button>
           </aside>
 
           <div className="flex-1 flex flex-col overflow-hidden">
@@ -1226,7 +1205,7 @@ export function WebForge({ navigate }) {
                 title="Make the page longer — the site continues below"
                 className="rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300 hover:text-white hover:border-accent-violet transition"
               >
-                ＋ Extend
+                <Icon glyph="＋" /> Extend
               </button>
             </div>
 
@@ -1234,18 +1213,16 @@ export function WebForge({ navigate }) {
             {liveEnabled && LIVE_TOOLS.has(tool) && (
               <div className="absolute left-3 bottom-3 z-20 flex items-center gap-2 rounded-full bg-ink-soft/85 border border-ink-line px-3 py-1 text-[11px] text-gray-300">
                 {tool === 'VOICE' ? (
-                  <span>{handDrawing ? '🗣 painting — louder = thicker' : '🤫 speak to paint'}</span>
+                  <span><IconText size={14}>{handDrawing ? '🗣 painting — louder = thicker' : '🤫 speak to paint'}</IconText></span>
                 ) : (
-                  <span>{handDrawing ? '✊ drawing' : '✋ paused — close your hand'}</span>
+                  <span><IconText size={14}>{handDrawing ? '✊ drawing' : '✋ paused — close your hand'}</IconText></span>
                 )}
                 <button
                   onClick={() => setHandSmooth((s) => !s)}
                   title="Smoothing — removes hand tremble"
                   className={handSmooth ? 'text-accent-cyan' : 'text-gray-600 hover:text-gray-300'}
-                >
-                  ⚡
-                </button>
-                <button onClick={() => setTool('SELECT')} className="text-gray-500 hover:text-red-400">✕</button>
+                ><Icon glyph="⚡" /></button>
+                <button onClick={() => setTool('SELECT')} className="text-gray-500 hover:text-red-400"><Icon glyph="✕" /></button>
               </div>
             )}
 
@@ -1332,7 +1309,7 @@ export function WebForge({ navigate }) {
                     }}
                     className="block w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-ink-line/50 hover:text-white rounded-lg transition"
                   >
-                    ◈ {k}
+                    <Icon glyph="◈" /> {k}
                   </button>
                 ))}
               </div>
@@ -1442,7 +1419,7 @@ export function WebForge({ navigate }) {
       {/* Подсказка за гласовите команди */}
       {voiceCommandsOn && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 rounded-full bg-ink-soft/85 border border-accent-violet/40 px-4 py-1.5 text-[11px] text-gray-300 backdrop-blur">
-          🎙 Listening — try “{VOICE_EXAMPLES[0]}”, “{VOICE_EXAMPLES[7]}”, “new page”, “generate”
+          <Icon glyph="🎙" /> Listening — try “{VOICE_EXAMPLES[0]}”, “{VOICE_EXAMPLES[7]}”, “new page”, “generate”
         </div>
       )}
 
@@ -1451,7 +1428,7 @@ export function WebForge({ navigate }) {
 
       {toast && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 rounded-full bg-ink-soft border border-ink-line px-5 py-2 text-sm text-white backdrop-blur animate-fade-in">
-          {toast}
+          <IconText size={15}>{toast}</IconText>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { useAuth } from '../hooks/useAuth';
 import { useSocial } from '../hooks/useSocial';
 import { Feed } from '../components/social/Feed';
@@ -52,7 +53,7 @@ export function Social({ navigate }) {
         {/* Header */}
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('landing')} className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition">
-            ← Back
+            <Icon glyph="←" /> Back
           </button>
           <h1 className="font-display font-extrabold text-white text-2xl tracking-tight">SOCIAL</h1>
           <div className="ml-auto relative">
@@ -61,7 +62,7 @@ export function Social({ navigate }) {
               className="relative w-10 h-10 rounded-full border border-ink-line bg-ink-soft/70 text-lg hover:border-accent-violet transition"
               title="Notifications"
             >
-              🔔
+              <Icon glyph="🔔" />
               {unread > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent-violet text-ink text-[10px] font-bold flex items-center justify-center">
                   {unread > 9 ? '9+' : unread}
@@ -84,7 +85,7 @@ export function Social({ navigate }) {
                 tab === id ? 'border-accent-violet text-white' : 'border-transparent text-gray-500 hover:text-white'
               }`}
             >
-              <span className="mr-1.5">{icon}</span>{label}
+              <span className="mr-1.5"><Icon glyph={icon} size={16} /></span>{label}
             </button>
           ))}
         </div>
@@ -100,7 +101,7 @@ export function Social({ navigate }) {
 
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 rounded-full bg-ink-soft border border-ink-line px-5 py-2 text-sm text-white backdrop-blur animate-fade-in">
-          {toast}
+          <IconText size={15}>{toast}</IconText>
         </div>
       )}
     </div>

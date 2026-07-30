@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
   const date = new Date(artwork.createdAt).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -16,15 +17,11 @@ export function GalleryCard({ artwork, onOpen, onEdit, onDelete }) {
               className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl">
-              ✦
-            </div>
+            <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl"><Icon glyph="✦" /></div>
           )}
           {artwork.videoUrl && (
             <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="w-11 h-11 rounded-full bg-black/50 border border-white/40 backdrop-blur flex items-center justify-center text-white text-lg">
-                ▶
-              </span>
+              <span className="w-11 h-11 rounded-full bg-black/50 border border-white/40 backdrop-blur flex items-center justify-center text-white text-lg"><Icon glyph="▶" /></span>
             </span>
           )}
         </div>

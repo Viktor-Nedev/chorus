@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon, IconText } from '../Icon';
 import { SCATTER_KINDS, DEFAULT_TERRAIN_PARAMS } from '../../engine/sculpt/terrain';
 import { ENV_PRESETS } from '../../engine/sculpt/SculptEngine';
 
@@ -13,7 +14,7 @@ function Section({ title, children, defaultOpen = true }) {
         className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-gray-500 hover:text-gray-300 transition"
       >
         {title}
-        <span className="text-gray-600">{open ? '−' : '+'}</span>
+        <span className="text-gray-600"><IconText size={14}>{open ? '−' : '+'}</IconText></span>
       </button>
       {open && <div className="px-3 pb-3 space-y-2.5">{children}</div>}
     </div>
@@ -24,7 +25,7 @@ function Slider({ label, value, min, max, step, onChange, fmt = (v) => v }) {
   return (
     <label className="block">
       <span className="flex justify-between text-[10px] text-gray-500 mb-0.5">
-        <span>{label}</span>
+        <span><IconText size={14}>{label}</IconText></span>
         <span className="text-gray-400">{fmt(value)}</span>
       </span>
       <input
@@ -91,7 +92,7 @@ export function ScenePanel({
             }`}
             onClick={() => onSelectObject(o.id)}
           >
-            <span className="text-xs w-4">{KIND_ICONS[o.kind] || '▪'}</span>
+            <span className="text-xs w-4"><Icon glyph={KIND_ICONS[o.kind] || '▪'} size={13} /></span>
             {renaming === o.id ? (
               <input
                 autoFocus
@@ -115,7 +116,7 @@ export function ScenePanel({
               className="text-[11px] text-gray-500 hover:text-white"
               title="Toggle visibility"
             >
-              {o.visible ? '👁' : '─'}
+              <IconText size={14}>{o.visible ? '👁' : '─'}</IconText>
             </button>
           </div>
         ))}
@@ -171,7 +172,7 @@ export function ScenePanel({
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={onDuplicate} className="flex-1 rounded border border-ink-line py-1.5 text-[11px] text-gray-300 hover:bg-ink-line/50 transition">
-              ⧉ Duplicate
+              <Icon glyph="⧉" /> Duplicate
             </button>
             <button onClick={onDelete} className="flex-1 rounded border border-red-900 bg-red-950/40 py-1.5 text-[11px] text-red-400 hover:bg-red-900/40 transition">
               Delete
@@ -187,7 +188,7 @@ export function ScenePanel({
             onClick={onAddTerrain}
             className="w-full rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
           >
-            ⛰ Generate terrain
+            <Icon glyph="⛰" /> Generate terrain
           </button>
         ) : (
           <>
@@ -241,7 +242,7 @@ export function ScenePanel({
                         : 'border-ink-line text-gray-400 hover:text-white'
                     }`}
                   >
-                    {def.icon} {def.label}
+                    <Icon glyph={def.icon} size={16} /> {def.label}
                   </button>
                 ))}
               </div>
@@ -251,7 +252,7 @@ export function ScenePanel({
                   scatterOpts.erase ? 'bg-red-950/60 border-red-800 text-red-300' : 'border-ink-line text-gray-400 hover:text-white'
                 }`}
               >
-                🧹 Eraser {scatterOpts.erase ? 'ON' : ''}
+                <Icon glyph="🧹" /> Eraser {scatterOpts.erase ? 'ON' : ''}
               </button>
               <Slider label="Radius" value={scatterOpts.radius} min={0.5} max={6} step={0.25} onChange={(v) => onScatterChange({ radius: v })} fmt={(v) => v.toFixed(1)} />
               <Slider label="Density" value={scatterOpts.density} min={1} max={10} step={1} onChange={(v) => onScatterChange({ density: v })} />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { GalleryCard } from '../components/GalleryCard';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useAuth } from '../hooks/useAuth';
@@ -78,7 +79,7 @@ export function Gallery({ navigate }) {
           onClick={() => navigate('landing')}
           className="text-xs tracking-[0.25em] uppercase text-gray-500 hover:text-white transition"
         >
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
 
         <div className="mt-6 mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -108,14 +109,14 @@ export function Gallery({ navigate }) {
               onClick={() => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'))}
               className="uppercase tracking-[0.2em] text-gray-500 hover:text-gray-300 transition"
             >
-              {sort} ↕
+              {sort} <Icon glyph="↕" />
             </button>
           </div>
         </div>
 
         {error && (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-sm">{error}</p>
+            <p className="text-gray-400 text-sm"><IconText size={14}>{error}</IconText></p>
             <button
               onClick={load}
               className="mt-4 rounded-lg border border-ink-line px-4 py-2 text-xs text-gray-300 hover:bg-ink-line/50"
@@ -131,7 +132,7 @@ export function Gallery({ navigate }) {
 
         {!error && !loading && visible.length === 0 && (
           <div className="text-center py-20">
-            <div className="text-4xl mb-3">✦</div>
+            <div className="text-4xl mb-3"><Icon glyph="✦" /></div>
             <p className="text-gray-400 text-sm">No artworks yet.</p>
             <button
               onClick={() => navigate('solo')}
@@ -237,7 +238,7 @@ export function Gallery({ navigate }) {
                     onClick={() => setShareArt(selected)}
                     className="rounded-lg border border-accent-violet/50 bg-accent-violet/10 px-4 py-2 text-sm text-accent-violet hover:bg-accent-violet/20 transition"
                   >
-                    ↗ Share to Social
+                    <Icon glyph="↗" /> Share to Social
                   </button>
                 )}
                 <button
@@ -269,7 +270,7 @@ export function Gallery({ navigate }) {
 
       {shared && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] rounded-full bg-ink-soft border border-accent-violet/40 px-5 py-2 text-sm text-white backdrop-blur animate-fade-in flex items-center gap-3">
-          ✓ Shared to Social
+          <Icon glyph="✓" /> Shared to Social
           <button onClick={() => navigate('social')} className="text-accent-violet hover:underline">View</button>
         </div>
       )}

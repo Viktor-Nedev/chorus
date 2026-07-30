@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Icon } from '../Icon';
 import { useArtworkStore } from '../../hooks/useArtworkStore';
 import { useSocial } from '../../hooks/useSocial';
 
@@ -50,12 +51,12 @@ export function PostComposer({ me, presetArtworkId, onClose, onPublished }) {
       <div className="w-full max-w-lg rounded-2xl bg-ink-soft border border-ink-line p-6 animate-slide-up max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-bold text-lg text-white">Share to Social</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition"><Icon glyph="✕" /></button>
         </div>
 
         {remix && (
           <div className="mb-4 rounded-lg border border-accent-cyan/40 bg-accent-cyan/10 px-3 py-2 text-xs text-accent-cyan">
-            ♻ Remix — this post will credit <b>{remix.author}</b>
+            <Icon glyph="♻" /> Remix — this post will credit <b>{remix.author}</b>
           </div>
         )}
 

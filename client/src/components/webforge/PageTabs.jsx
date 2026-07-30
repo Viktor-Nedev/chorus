@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../Icon';
 
 // Лента със страниците на сайта. Всяка страница е отделен канвас и отделен
 // HTML файл при генерация; навигацията между тях се свързва автоматично.
@@ -49,7 +50,7 @@ export function PageTabs({ pages, activeId, siteMap, onSelect, onAdd, onRename, 
                 title={path ? `${p.name} → ${path}` : p.name}
                 className="whitespace-nowrap"
               >
-                {i === 0 && <span className="text-[9px] text-gray-600 mr-1">⌂</span>}
+                {i === 0 && <span className="text-[9px] text-gray-600 mr-1"><Icon glyph="⌂" /></span>}
                 {p.name}
               </button>
             )}
@@ -58,9 +59,7 @@ export function PageTabs({ pages, activeId, siteMap, onSelect, onAdd, onRename, 
                 onClick={() => onDelete(p.id)}
                 title="Delete page"
                 className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition text-[10px]"
-              >
-                ✕
-              </button>
+              ><Icon glyph="✕" /></button>
             )}
           </div>
         );
@@ -70,7 +69,7 @@ export function PageTabs({ pages, activeId, siteMap, onSelect, onAdd, onRename, 
         title="Add a page — it gets its own canvas and its own HTML file"
         className="shrink-0 rounded-lg px-2 h-7 text-xs text-gray-500 hover:text-white hover:bg-ink-line/50 transition"
       >
-        ＋ Page
+        <Icon glyph="＋" /> Page
       </button>
     </div>
   );

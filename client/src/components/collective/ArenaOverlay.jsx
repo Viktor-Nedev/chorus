@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Icon, IconText } from '../Icon';
 
 // Game Arena: рундове с prompt + таймер и пет вида игри (draw / memory /
 // blind / pictionary / impostor), гласуване или AI съдия, точки, scoreboard и
@@ -47,7 +48,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
         <div className="text-center pointer-events-auto animate-fade-in">
-          <div className="text-6xl mb-4">🏟</div>
+          <div className="text-6xl mb-4"><Icon glyph="🏟" /></div>
           <h2 className="font-display font-extrabold text-3xl text-white tracking-wide">GAME ARENA</h2>
           <p className="mt-2 text-sm text-gray-400 max-w-sm">
             Draw, guess and deduce — 5 game types. Win rounds, collect points.
@@ -59,7 +60,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
               onClick={socket.startArena}
               className="mt-6 rounded-xl bg-accent-violet/85 px-8 py-3 text-sm font-bold text-ink hover:bg-accent-violet transition animate-slide-up"
             >
-              ▶ Start the games
+              <Icon glyph="▶" /> Start the games
             </button>
           ) : (
             <p className="mt-6 text-xs text-gray-500 glow-pulse">Waiting for the host to start…</p>
@@ -98,10 +99,10 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
       {arena.phase === 'drawing' && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-2xl bg-ink-soft/90 border border-accent-violet/60 backdrop-blur px-6 py-3 text-center animate-slide-up max-w-[92vw]">
           <div className="text-[10px] uppercase tracking-[0.3em] text-gray-500">
-            {info.icon} Round {arena.round}/{arena.totalRounds} — {info.title}
+            <Icon glyph={info.icon} size={18} /> Round {arena.round}/{arena.totalRounds} — {info.title}
           </div>
           <div className={`font-display font-bold text-xl my-0.5 ${isImpostor && arena.impostor ? 'text-amber-300' : 'text-white'}`}>
-            {drawingHeadline()}
+            <IconText size={20}>{drawingHeadline()}</IconText>
           </div>
           {isPictionary && !amDrawer && (
             <div className="text-[11px] text-accent-cyan">
@@ -119,7 +120,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
       {arena.phase === 'drawing' && arena.kind === 'memory' && showEmoji && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink/80 backdrop-blur-sm pointer-events-none animate-fade-in">
           <div className="text-center">
-            <div style={{ fontSize: '10rem' }}>{arena.prompt?.emoji}</div>
+            <div style={{ fontSize: '10rem' }}><Icon glyph={arena.prompt?.emoji} size={160} /></div>
             <p className="text-sm text-gray-400 mt-2">Memorize it! Drawing starts in a moment…</p>
           </div>
         </div>
@@ -127,14 +128,14 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
 
       {arena.phase === 'collect' && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 rounded-2xl bg-ink-soft/90 border border-ink-line backdrop-blur px-6 py-3 text-sm text-gray-300 animate-fade-in">
-          🖼 Pencils down! Collecting drawings…
+          <Icon glyph="🖼" /> Pencils down! Collecting drawings…
         </div>
       )}
 
       {arena.phase === 'judging' && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="text-center">
-            <div className="text-6xl mb-3 glow-pulse">🤖</div>
+            <div className="text-6xl mb-3 glow-pulse"><Icon glyph="🤖" /></div>
             <p className="font-display font-bold text-white text-xl">The AI judge is deliberating…</p>
             <p className="text-xs text-gray-500 mt-1">Gemini is looking at every drawing of “{arena.prompt?.text}”.</p>
           </div>
@@ -145,7 +146,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
       {arena.phase === 'voting' && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="max-w-3xl w-full mx-4 rounded-2xl bg-ink-soft border border-ink-line p-6 animate-slide-up max-h-[85vh] overflow-y-auto">
-            <h2 className="font-display font-bold text-xl text-white mb-1">{voteQuestion}</h2>
+            <h2 className="font-display font-bold text-xl text-white mb-1"><IconText size={20}>{voteQuestion}</IconText></h2>
             <p className="text-[11px] text-gray-500 mb-4">
               You can't vote for yourself. {arena.votesIn || 0} vote{(arena.votesIn || 0) === 1 ? '' : 's'} in.
             </p>
@@ -167,7 +168,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
                   >
                     <img src={e.png} alt={e.nickname} className="w-full aspect-video object-cover bg-ink" />
                     <div className="px-2.5 py-1.5 text-xs text-gray-300">
-                      {mine ? 'you' : e.nickname} {chosen && '· ✓'}
+                      {mine ? 'you' : e.nickname} {chosen && <> · <Icon glyph="✓" size={12} /></>}
                     </div>
                   </button>
                 );
@@ -191,13 +192,13 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
             )}
             {arena.reveal?.impostorNickname && (
               <p className="mt-1 text-sm text-amber-300">
-                {arena.reveal.caught ? '🕵 Caught! ' : '🎭 Got away! '}
+                <IconText size={15}>{arena.reveal.caught ? '🕵 Caught! ' : '🎭 Got away! '}</IconText>
                 The impostor was <span className="font-bold">{arena.reveal.impostorId === myId ? 'you' : arena.reveal.impostorNickname}</span>.
               </p>
             )}
             {arena.comment && (
               <p className="mt-1 text-xs text-gray-400">
-                {arena.aiJudged ? '🤖 AI judge: ' : ''}
+                <IconText size={13}>{arena.aiJudged ? '🤖 AI judge: ' : ''}</IconText>
                 {arena.comment}
               </p>
             )}
@@ -209,7 +210,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
                   className={`flex items-center gap-3 rounded-xl border p-2.5 ${i === 0 && r.gained > 0 ? 'border-yellow-600 bg-yellow-950/20' : 'border-ink-line'}`}
                 >
                   <span className="text-xl w-8 text-center">
-                    {r.gained > 0 && i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                    <IconText size={20}>{r.gained > 0 && i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</IconText>
                   </span>
                   {r.png && <img src={r.png} alt="" className="w-20 aspect-video object-cover rounded bg-ink" />}
                   <span className="flex-1 text-sm text-white truncate">{r.userId === myId ? 'you' : r.nickname}</span>
@@ -232,7 +233,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
       {arena.phase === 'podium' && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-sm animate-fade-in">
           <div className="max-w-md w-full mx-4 rounded-2xl bg-ink-soft border border-yellow-700 p-8 text-center animate-slide-up">
-            <div className="text-5xl mb-2">🏆</div>
+            <div className="text-5xl mb-2"><Icon glyph="🏆" /></div>
             <h2 className="font-display font-extrabold text-2xl text-white mb-6">Final standings</h2>
             <div className="space-y-2 text-left">
               {(arena.standings || []).map((s, i) => (
@@ -240,7 +241,7 @@ export function ArenaOverlay({ socket, isCreator, myId }) {
                   key={s.userId}
                   className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 ${i === 0 ? 'border-yellow-500 bg-yellow-950/30' : 'border-ink-line'}`}
                 >
-                  <span className="text-xl">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                  <span className="text-xl"><IconText size={20}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</IconText></span>
                   <span className="flex-1 text-sm font-bold text-white truncate">{s.userId === myId ? 'you' : s.nickname}</span>
                   <span className="text-sm text-accent-violet font-bold">{s.points} pts</span>
                 </div>

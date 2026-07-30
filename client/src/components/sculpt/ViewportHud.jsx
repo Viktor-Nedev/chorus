@@ -1,4 +1,5 @@
 import { EMOTION_CONFIGS } from '../../constants/emotions';
+import { Icon, IconText } from '../Icon';
 
 // Blender-подобни overlay HUD-ове върху 3D viewport-а: transform toolbar,
 // render mode, view navigation, статистики и Live (audio+emotion) панел.
@@ -30,7 +31,7 @@ export function ViewportHud({
         <div className="absolute left-2 top-2 z-30 flex gap-1.5 animate-fade-in">
           <Group>
             {[['translate', '↔', 'Move (G)'], ['rotate', '⟳', 'Rotate (R)'], ['scale', '⤢', 'Scale (S)']].map(([m, ic, t]) => (
-              <button key={m} title={t} onClick={() => onMode(m)} className={`${btn} ${transformMode === m ? on : off}`}>{ic}</button>
+              <button key={m} title={t} onClick={() => onMode(m)} className={`${btn} ${transformMode === m ? on : off}`}><Icon glyph={ic} size={16} /></button>
             ))}
           </Group>
           <Group>
@@ -42,7 +43,7 @@ export function ViewportHud({
               {transformSpace}
             </button>
             <button title="Snap to grid / angle" onClick={() => onSnap(!snap)} className={`${btn} ${snap ? on : off}`}>
-              ⊹ Snap
+              <Icon glyph="⊹" /> Snap
             </button>
           </Group>
         </div>
@@ -52,7 +53,7 @@ export function ViewportHud({
       <div className="absolute left-1/2 -translate-x-1/2 top-2 z-30 animate-fade-in">
         <Group>
           {[['solid', '◐ Solid'], ['rendered', '✦ Rendered'], ['wireframe', '△ Wire']].map(([m, label]) => (
-            <button key={m} onClick={() => onRenderMode(m)} className={`${btn} ${renderMode === m ? on : off}`}>{label}</button>
+            <button key={m} onClick={() => onRenderMode(m)} className={`${btn} ${renderMode === m ? on : off}`}><IconText size={13}>{label}</IconText></button>
           ))}
         </Group>
       </div>
@@ -66,8 +67,8 @@ export function ViewportHud({
             ))}
           </Group>
           <Group>
-            <button title="Frame all (Home)" onClick={onFrameAll} className={`${btn} ${off}`}>⌂</button>
-            <button title="Orthographic / Perspective" onClick={onToggleOrtho} className={`${btn} ${ortho ? on : off}`}>◱</button>
+            <button title="Frame all (Home)" onClick={onFrameAll} className={`${btn} ${off}`}><Icon glyph="⌂" /></button>
+            <button title="Orthographic / Perspective" onClick={onToggleOrtho} className={`${btn} ${ortho ? on : off}`}><Icon glyph="◱" /></button>
           </Group>
         </div>
       )}
@@ -89,7 +90,7 @@ export function ViewportHud({
             <span className="w-2 h-2 rounded-full bg-red-500 glow-pulse" />
             <span className="text-xs font-bold text-white tracking-wide">LIVE · reacting to sound & emotion</span>
             <span className="ml-auto flex items-center gap-1 text-[11px] text-gray-400">
-              <span className="text-base leading-none">{(EMOTION_CONFIGS[emotion] || EMOTION_CONFIGS.neutral).emoji}</span>
+              <span className="text-base leading-none"><Icon glyph={(EMOTION_CONFIGS[emotion] || EMOTION_CONFIGS.neutral).emoji} size={16} /></span>
               {(EMOTION_CONFIGS[emotion] || EMOTION_CONFIGS.neutral).label}
             </span>
           </div>
@@ -108,7 +109,7 @@ export function ViewportHud({
             {!recorder.result ? (
               recorder.recording ? (
                 <button onClick={recorder.stop} className="flex-1 rounded-lg bg-red-600/80 hover:bg-red-500 text-white text-xs py-2 transition">
-                  ■ Stop · {Math.floor(recorder.elapsed)}s
+                  <Icon glyph="■" /> Stop · {Math.floor(recorder.elapsed)}s
                 </button>
               ) : (
                 <button
@@ -116,13 +117,13 @@ export function ViewportHud({
                   disabled={!recorder.supported}
                   className="flex-1 rounded-lg bg-accent-cyan/20 border border-accent-cyan/50 text-accent-cyan text-xs py-2 hover:bg-accent-cyan/30 disabled:opacity-40 transition"
                 >
-                  ● Record performance
+                  <Icon glyph="●" /> Record performance
                 </button>
               )
             ) : (
               <>
                 <button onClick={onSaveClip} className="flex-1 rounded-lg bg-accent-violet/80 hover:bg-accent-violet text-ink font-bold text-xs py-2 transition">
-                  💾 Save clip to gallery
+                  <Icon glyph="💾" /> Save clip to gallery
                 </button>
                 <button onClick={onDiscardClip} className="rounded-lg border border-ink-line text-gray-300 hover:bg-ink-line/50 text-xs px-3 py-2 transition">
                   Discard

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon } from '../Icon';
 
 // Инспектор за визуалното редактиране. Получава избрания елемент (от
 // postMessage-а на iframe-а) и връща стилови/текстови промени нагоре.
@@ -12,7 +13,7 @@ export function VisualInspector({ selection, onText, onStyle, onDelete, onClose 
   if (!selection) {
     return (
       <div className="shrink-0 border-t border-ink-line bg-ink-soft/60 px-3 py-2 text-[11px] text-gray-500">
-        ✎ Edit mode — click any element in the preview. Text becomes editable; use the
+        <Icon glyph="✎" /> Edit mode — click any element in the preview. Text becomes editable; use the
         inspector to recolour and resize it.
       </div>
     );
@@ -34,7 +35,7 @@ export function VisualInspector({ selection, onText, onStyle, onDelete, onClose 
           &lt;{selection.tag}&gt;
         </span>
         <button onClick={onClose} className="ml-auto text-[11px] text-gray-500 hover:text-white">
-          ✕ Close editor
+          <Icon glyph="✕" /> Close editor
         </button>
       </div>
 

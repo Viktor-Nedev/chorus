@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { Icon, IconText } from '../Icon';
 import Editor from '@monaco-editor/react';
 import { FRAME_TYPES } from './tools';
 import { VisualInspector, useVisualEditorMessages } from './VisualEditor';
@@ -192,7 +193,7 @@ export function RightPanel({
             }`}
           >
             {t}
-            {t === 'Backend' && hasBackend && <span className="ml-0.5 text-yellow-400">⚡</span>}
+            {t === 'Backend' && hasBackend && <span className="ml-0.5 text-yellow-400"><Icon glyph="⚡" /></span>}
             {t === 'Props' && selected && (
               <span className="absolute top-1.5 right-0.5 w-1.5 h-1.5 rounded-full bg-accent-violet" />
             )}
@@ -212,7 +213,7 @@ export function RightPanel({
               }`}
               title="Live wireframe of your sketch — updates as you draw"
             >
-              ✏ Wireframe
+              <Icon glyph="✏" /> Wireframe
             </button>
             <button
               onClick={() => generatedHtml && setPreviewMode('generated')}
@@ -222,7 +223,7 @@ export function RightPanel({
               }`}
               title="The AI-generated website"
             >
-              ⚡ Generated
+              <Icon glyph="⚡" /> Generated
             </button>
             {/* Страница за preview (multi-page) */}
             {previewMode === 'generated' && pageFiles.length > 1 && (
@@ -246,7 +247,7 @@ export function RightPanel({
                   editMode ? 'bg-accent-violet/25 text-white border border-accent-violet/60' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
-                ✎ Edit
+                <Icon glyph="✎" /> Edit
               </button>
             )}
             <span className="w-px h-4 bg-ink-line mx-1" />
@@ -259,7 +260,7 @@ export function RightPanel({
                   device === d.id ? 'bg-ink-line text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
-                {d.label}
+                <Icon glyph={d.label} size={15} />
               </button>
             ))}
             <div className="ml-auto flex items-center">
@@ -271,23 +272,19 @@ export function RightPanel({
                     showGuides ? 'bg-ink-line text-white' : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  ⧉ Guides
+                  <Icon glyph="⧉" /> Guides
                 </button>
               )}
               <button
                 onClick={() => setPreviewKey((k) => k + 1)}
                 className="px-1.5 py-1 text-[11px] text-gray-500 hover:text-white transition"
                 title="Refresh preview"
-              >
-                🔄
-              </button>
+              ><Icon glyph="🔄" /></button>
               <button
                 onClick={openInNewTab}
                 className="px-1.5 py-1 text-[11px] text-gray-500 hover:text-white transition"
                 title="Open in new tab"
-              >
-                ↗
-              </button>
+              ><Icon glyph="↗" /></button>
             </div>
           </div>
 
@@ -334,7 +331,7 @@ export function RightPanel({
         <div className="flex-1 overflow-y-auto p-5">
           <div className="max-w-md mx-auto space-y-4">
             <div>
-              <h3 className="font-display font-bold text-white text-lg">🎨 Site palette</h3>
+              <h3 className="font-display font-bold text-white text-lg"><Icon glyph="🎨" /> Site palette</h3>
               <p className="text-[11px] text-gray-500 mt-1">
                 These exact colours are injected into the generated CSS as
                 <code className="mx-1 text-accent-cyan">var(--wf-*)</code>, so the site matches
@@ -346,7 +343,7 @@ export function RightPanel({
               onClick={onRereadPalette}
               className="w-full rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
             >
-              ↻ Re-read colours from my sketch
+              <Icon glyph="↻" /> Re-read colours from my sketch
             </button>
 
             <div className="space-y-2">
@@ -452,7 +449,7 @@ export function RightPanel({
             disabled={analyzing}
             className="w-full rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 py-2 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition disabled:opacity-50"
           >
-            {analyzing ? '🔍 Analyzing…' : '🔍 Analyze sketch'}
+            <IconText size={14}>{analyzing ? '🔍 Analyzing…' : '🔍 Analyze sketch'}</IconText>
           </button>
 
           <label className="flex items-center gap-2 px-1 text-[10px] text-gray-500 cursor-pointer select-none">
@@ -477,11 +474,11 @@ export function RightPanel({
           {components.map((c, i) => (
             <div key={i} className="rounded-lg border border-ink-line bg-ink p-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm">{TYPE_ICONS[c.type] || '▭'}</span>
+                <span className="text-sm"><Icon glyph={TYPE_ICONS[c.type] || '▭'} size={16} /></span>
                 <span className="text-xs font-display font-bold text-white">{c.label || c.type}</span>
                 {c.backendRequired && (
                   <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-950 text-yellow-400">
-                    ⚡ backend
+                    <Icon glyph="⚡" /> backend
                   </span>
                 )}
               </div>
@@ -490,7 +487,7 @@ export function RightPanel({
                 <p className="mt-1 text-[10px] text-yellow-500/80 leading-snug">{c.backendNote}</p>
               )}
               {c.suggestion && (
-                <p className="mt-1 text-[10px] text-accent-cyan/70 leading-snug">💡 {c.suggestion}</p>
+                <p className="mt-1 text-[10px] text-accent-cyan/70 leading-snug"><Icon glyph="💡" /> {c.suggestion}</p>
               )}
             </div>
           ))}
@@ -523,7 +520,7 @@ export function RightPanel({
                     onClick={() => onApplyFiles(m.updatedFiles)}
                     className="mt-2 block w-full rounded border border-accent-cyan/50 bg-accent-cyan/10 py-1 text-[10px] text-accent-cyan hover:bg-accent-cyan/20 transition"
                   >
-                    ✓ Apply changes ({m.updatedFiles.map((f) => f.path.split('/').pop()).join(', ')})
+                    <Icon glyph="✓" /> Apply changes ({m.updatedFiles.map((f) => f.path.split('/').pop()).join(', ')})
                   </button>
                 )}
               </div>
@@ -543,9 +540,7 @@ export function RightPanel({
               onClick={sendChat}
               disabled={chatBusy}
               className="rounded-lg bg-accent-violet/80 px-3 text-xs text-ink hover:bg-accent-violet transition disabled:opacity-50"
-            >
-              →
-            </button>
+            ><Icon glyph="→" /></button>
           </div>
         </div>
       )}
@@ -570,7 +565,7 @@ export function RightPanel({
       {tab === 'Deploy' && (
         <div className="flex-1 overflow-y-auto p-5">
           <div className="max-w-lg mx-auto space-y-4">
-            <h3 className="font-display font-bold text-white text-lg">🚀 Deploy Your Website</h3>
+            <h3 className="font-display font-bold text-white text-lg"><Icon glyph="🚀" /> Deploy Your Website</h3>
 
             {!files?.length ? (
               <p className="text-xs text-gray-500">Generate the site first.</p>
@@ -579,7 +574,7 @@ export function RightPanel({
                 {/* ── 1. Публикуване: истински споделим адрес, без сървър ── */}
                 {publishedUrl ? (
                   <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
-                    <div className="text-xs text-green-400 mb-2">✓ Published — anyone can open this</div>
+                    <div className="text-xs text-green-400 mb-2"><Icon glyph="✓" /> Published — anyone can open this</div>
                     <a
                       href={publishedUrl}
                       target="_blank"
@@ -610,8 +605,7 @@ export function RightPanel({
                     disabled={publishing || !publishAvailable}
                     title={publishAvailable ? 'Upload the site to public hosting' : 'Sign in (and configure Supabase) to publish'}
                     className="w-full rounded-lg border border-accent-violet/50 bg-accent-violet/10 py-3 text-sm text-accent-violet hover:bg-accent-violet/20 transition text-left px-4 disabled:opacity-50"
-                  >
-                    🌍 <span className="font-bold">{publishing ? 'Publishing…' : 'Publish website'}</span>
+                  ><Icon glyph="🌍" /><span className="font-bold">{publishing ? 'Publishing…' : 'Publish website'}</span>
                     <span className="block text-[11px] text-gray-500 mt-0.5">
                       {publishAvailable
                         ? 'Uploads to public hosting and gives you a shareable link'
@@ -624,8 +618,7 @@ export function RightPanel({
                 <button
                   onClick={onDownload}
                   className="w-full rounded-lg border border-ink-line bg-ink-soft py-3 text-sm text-gray-200 hover:bg-ink-line/40 transition text-left px-4"
-                >
-                  📥 <span className="font-bold">Download ZIP</span>
+                ><Icon glyph="📥" /><span className="font-bold">Download ZIP</span>
                   <span className="block text-[11px] text-gray-500 mt-0.5">
                     Full project + README — works offline, no server needed
                   </span>
@@ -645,7 +638,7 @@ export function RightPanel({
                   deployment ? (
                     <div className="rounded-lg border border-green-900 bg-green-950/30 p-4">
                       <div className="text-xs text-green-400 mb-2">
-                        ✓ Running locally ({deployment.type === 'docker' ? 'container' : 'static'})
+                        <Icon glyph="✓" /> Running locally ({deployment.type === 'docker' ? 'container' : 'static'})
                       </div>
                       <a href={deployment.url} target="_blank" rel="noreferrer" className="text-sm text-accent-cyan underline break-all">
                         {deployment.url}
@@ -655,7 +648,7 @@ export function RightPanel({
                           onClick={onStopDocker}
                           className="mt-3 block w-full rounded border border-red-900 bg-red-950/40 py-1.5 text-xs text-red-400 hover:bg-red-900/40 transition"
                         >
-                          ⏹ Stop container
+                          <Icon glyph="⏹" /> Stop container
                         </button>
                       )}
                     </div>
@@ -664,8 +657,7 @@ export function RightPanel({
                       onClick={onDeployDocker}
                       disabled={deployBusy || !projectId}
                       className="w-full rounded-lg border border-ink-line py-3 text-sm text-gray-300 hover:bg-ink-line/40 transition text-left px-4 disabled:opacity-50"
-                    >
-                      🐳 <span className="font-bold">{deployBusy ? 'Starting…' : 'Run locally in Docker'}</span>
+                    ><Icon glyph="🐳" /><span className="font-bold">{deployBusy ? 'Starting…' : 'Run locally in Docker'}</span>
                       <span className="block text-[11px] text-gray-500 mt-0.5">
                         Optional — runs the full stack on your own machine
                       </span>
@@ -711,7 +703,7 @@ function PropertiesEditor({ selected, selectedTick, onUpdate, onDelete }) {
           >
             {FRAME_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t === 'auto' ? 'Auto-detect' : t === 'backend' ? '⚡ backend zone' : t}
+                <IconText size={14}>{t === 'auto' ? 'Auto-detect' : t === 'backend' ? '⚡ backend zone' : t}</IconText>
               </option>
             ))}
           </select>

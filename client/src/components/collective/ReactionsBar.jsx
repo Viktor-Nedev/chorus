@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Icon } from '../Icon';
 
 const EMOJIS = ['❤', '🔥', '👏', '✨', '😂'];
 
@@ -35,7 +36,7 @@ export function ReactionsBar({ socket }) {
             className="absolute bottom-24 text-3xl"
             style={{ left: `${r.x}%`, animation: 'chorus-float-up 2.6s ease-out forwards' }}
           >
-            {r.emoji}
+            <Icon glyph={r.emoji} size={18} />
           </span>
         ))}
       </div>
@@ -48,7 +49,7 @@ export function ReactionsBar({ socket }) {
             onClick={() => socket.sendReaction(e)}
             className="w-9 h-9 rounded-full text-lg hover:bg-ink-line/60 hover:scale-125 transition"
           >
-            {e}
+            <Icon glyph={e} size={20} />
           </button>
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { AuthParticles } from '../components/AuthParticles';
 import { useAuth } from '../hooks/useAuth';
 
@@ -55,7 +56,7 @@ export function Auth({ navigate, postAuthTarget }) {
             onClick={() => navigate('landing')}
             className="text-sm text-gray-500 hover:text-white transition mb-8"
           >
-            ← Back
+            <Icon glyph="←" /> Back
           </button>
 
           <h1 className="font-display font-bold text-2xl text-white mb-1">
@@ -131,14 +132,14 @@ export function Auth({ navigate, postAuthTarget }) {
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-sm"
                   title={showPass ? 'Hide' : 'Show'}
                 >
-                  {showPass ? '🙈' : '👁'}
+                  <Icon glyph={showPass ? '🙈' : '👁'} />
                 </button>
               </div>
             </label>
 
             {error && (
               <div className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-300 animate-fade-in">
-                ⚠ {error}
+                <Icon glyph="⚠" /> {error}
               </div>
             )}
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { VideoProcessor } from '../components/VideoProcessor';
 import { InstructionsBook } from '../components/solo/InstructionsBook';
 import { COLLECTIVE_PAGES } from '../components/help/manuals';
@@ -72,7 +73,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
           onClick={() => navigate('landing')}
           className="text-sm text-gray-500 hover:text-white transition mb-6"
         >
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
         <h1 className="font-display text-3xl text-white tracking-widest mb-1">COLLECTIVE</h1>
         <p className="text-sm text-gray-400 mb-6">
@@ -91,7 +92,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
                   : 'border-ink-line bg-ink-soft/40 hover:border-gray-500'
               }`}
             >
-              <div className="text-2xl">{g.icon}</div>
+              <div className="text-2xl"><Icon glyph={g.icon} size={26} /></div>
               <div className="mt-1.5 font-display font-bold text-sm text-white">{g.title}</div>
               <div className="mt-1 text-[11px] text-gray-500 leading-snug">{g.desc}</div>
             </button>
@@ -152,7 +153,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
                     game === id ? 'bg-cyan-950/60 border-cyan-600 text-cyan-300' : 'border-ink-line text-gray-400 hover:text-white'
                   }`}
                 >
-                  {label}
+                  <IconText size={14}>{label}</IconText>
                 </button>
               ))}
             </div>
@@ -187,7 +188,7 @@ function Lobby({ onCreate, onJoin, joinError, navigate, defaultNickname }) {
         )}
 
         {joinError && (
-          <p className="text-sm text-red-400 mb-4 animate-fade-in">⚠ {joinError}</p>
+          <p className="text-sm text-red-400 mb-4 animate-fade-in"><Icon glyph="⚠" /> {joinError}</p>
         )}
 
         <div className="flex flex-col gap-3">
@@ -415,7 +416,7 @@ function Session({ socket, navigate }) {
           }}
           className="text-sm text-gray-400 hover:text-white transition"
         >
-          ← Leave
+          <Icon glyph="←" /> Leave
         </button>
 
         <button
@@ -431,9 +432,7 @@ function Session({ socket, navigate }) {
             onClick={() => setShowBook(true)}
             title="Field guide"
             className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 py-1.5 text-xs text-gray-200 hover:border-accent-cyan transition"
-          >
-            📖
-          </button>
+          ><Icon glyph="📖" /></button>
           {!isArena && (
             <BattleOverlay
               socket={socket}
@@ -482,9 +481,7 @@ function Session({ socket, navigate }) {
               className={`w-9 h-9 rounded-lg text-base transition flex items-center justify-center ${
                 drawMode ? 'bg-accent-violet/30 border border-accent-violet' : 'hover:bg-ink-line/60'
               }`}
-            >
-              🖌
-            </button>
+            ><Icon glyph="🖌" /></button>
           )}
           {effectiveDrawMode && (
             <>
@@ -501,7 +498,7 @@ function Session({ socket, navigate }) {
                       : 'hover:bg-ink-line/60 border border-transparent'
                   }`}
                 >
-                  {ic}
+                  <Icon glyph={ic} size={18} />
                 </button>
               ))}
               <input
@@ -534,7 +531,7 @@ function Session({ socket, navigate }) {
                     on ? 'bg-accent-cyan/25 border border-accent-cyan text-accent-cyan' : 'hover:bg-ink-line/60 border border-transparent'
                   }`}
                 >
-                  {ic}
+                  <Icon glyph={ic} size={18} />
                 </button>
               ))}
             </>
@@ -544,9 +541,7 @@ function Session({ socket, navigate }) {
               onClick={() => window.confirm('Clear the shared canvas for everyone?') && socket.clearCanvas()}
               title="Clear shared canvas (host)"
               className="w-9 h-9 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-ink-line/60 transition"
-            >
-              🗑
-            </button>
+            ><Icon glyph="🗑" /></button>
           )}
         </div>
       )}

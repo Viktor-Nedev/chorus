@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { MoodParticleScene } from '../components/moodcheck/MoodParticleScene';
 import { CameraFX } from '../components/moodcheck/CameraFX';
 import { EFFECTS } from '../components/moodcheck/cameraFxUtils';
@@ -250,9 +251,9 @@ export function MoodCheck({ navigate }) {
       onClick={() => selectAvatar(a.id)}
       className={`flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition ${avatarId === a.id ? 'bg-accent-violet/25 text-white' : 'text-gray-300 hover:bg-ink-line/50'}`}
     >
-      <span className="text-sm">{a.emoji}</span>
+      <span className="text-sm"><Icon glyph={a.emoji} size={16} /></span>
       <span className="flex-1 truncate">{a.label}</span>
-      {deletable && <button onClick={(e) => deleteAvatar(a.id, e)} className="text-gray-500 hover:text-red-400 text-[11px]">✕</button>}
+      {deletable && <button onClick={(e) => deleteAvatar(a.id, e)} className="text-gray-500 hover:text-red-400 text-[11px]"><Icon glyph="✕" /></button>}
     </div>
   );
 
@@ -289,21 +290,21 @@ export function MoodCheck({ navigate }) {
       <VideoProcessor ref={videoRef} detect={detect} active={true} />
 
       {presenting ? (
-        <button onClick={togglePresent} className="absolute top-4 right-4 z-30 rounded-full bg-black/50 border border-white/20 px-3 py-1.5 text-[11px] text-white/80 hover:text-white backdrop-blur">✕ Exit present</button>
+        <button onClick={togglePresent} className="absolute top-4 right-4 z-30 rounded-full bg-black/50 border border-white/20 px-3 py-1.5 text-[11px] text-white/80 hover:text-white backdrop-blur"><Icon glyph="✕" /> Exit present</button>
       ) : (
         <>
           {/* ── HEADER ── */}
           <header className="absolute top-0 inset-x-0 z-20 flex items-center gap-2 px-4 h-14 bg-gradient-to-b from-ink/90 to-transparent">
-            <button onClick={() => navigate('landing')} className="text-sm text-gray-400 hover:text-white transition shrink-0">← Back</button>
+            <button onClick={() => navigate('landing')} className="text-sm text-gray-400 hover:text-white transition shrink-0"><Icon glyph="←" /> Back</button>
             <span className="font-display font-extrabold text-sm text-white tracking-[0.2em] hidden md:inline">MIRROR</span>
 
             <div className="ml-auto flex items-center gap-2">
               {/* Avatar picker */}
               <div className="relative">
                 <button onClick={() => { setShowAvatars((s) => !s); setShowEffects(false); }} className="flex items-center gap-2 rounded-lg border border-ink-line bg-ink-soft/70 px-3 h-8 text-xs text-gray-200 hover:border-accent-violet transition" title="Choose your face">
-                  <span>{currentAvatar?.emoji || '🪞'}</span>
+                  <span><IconText size={14}>{currentAvatar?.emoji || '🪞'}</IconText></span>
                   <span className="hidden sm:inline">{currentAvatar?.label || 'Real'}</span>
-                  <span className="text-gray-500">▾</span>
+                  <span className="text-gray-500"><Icon glyph="▾" /></span>
                 </button>
                 {showAvatars && (
                   <div className="absolute right-0 top-10 z-30 w-52 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-1.5 animate-fade-in max-h-[75vh] overflow-y-auto">
@@ -313,15 +314,15 @@ export function MoodCheck({ navigate }) {
                     {myAvatars.length > 0 && <div className="text-[9px] uppercase tracking-[0.2em] text-gray-600 px-2 pt-2 pb-0.5">My avatars</div>}
                     {myAvatars.map((a) => <AvatarRow key={a.id} a={a} deletable />)}
                     <div className="border-t border-ink-line my-1.5" />
-                    <button onClick={() => { setShowAvatars(false); setShowCustom(true); }} className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-accent-cyan hover:bg-ink-line/50 transition">＋ Create custom</button>
-                    <button onClick={() => { setShowAvatars(false); setShowDraw(true); }} className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-accent-cyan hover:bg-ink-line/50 transition">🎨 Draw your own</button>
+                    <button onClick={() => { setShowAvatars(false); setShowCustom(true); }} className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-accent-cyan hover:bg-ink-line/50 transition"><Icon glyph="＋" /> Create custom</button>
+                    <button onClick={() => { setShowAvatars(false); setShowDraw(true); }} className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-accent-cyan hover:bg-ink-line/50 transition"><Icon glyph="🎨" /> Draw your own</button>
                   </div>
                 )}
               </div>
 
               {/* Effects */}
               <div className="relative">
-                <button onClick={() => { setShowEffects((s) => !s); setShowAvatars(false); }} className={`rounded-lg border px-2.5 h-8 text-xs transition ${talkKind !== 'off' || showHands || drawOn || fxEffect ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`} title="Effects">⚙ <span className="hidden md:inline">Effects</span></button>
+                <button onClick={() => { setShowEffects((s) => !s); setShowAvatars(false); }} className={`rounded-lg border px-2.5 h-8 text-xs transition ${talkKind !== 'off' || showHands || drawOn || fxEffect ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`} title="Effects"><Icon glyph="⚙" /><span className="hidden md:inline">Effects</span></button>
                 {showEffects && (
                   <div className="absolute right-0 top-10 z-30 w-60 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-2.5 animate-fade-in space-y-2.5 max-h-[80vh] overflow-y-auto">
                     {/* ── Camera FX (thermal lens / point cloud …) ── */}
@@ -331,7 +332,7 @@ export function MoodCheck({ navigate }) {
                         {fxEffect && (
                           <div className="flex gap-1">
                             {['lens', 'fullscreen'].map((m) => (
-                              <button key={m} onClick={() => setFxMode(m)} className={`rounded px-1.5 py-0.5 text-[9px] border transition ${fxMode === m ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-500'}`}>{m === 'lens' ? '⬚ Lens' : '⛶ Full'}</button>
+                              <button key={m} onClick={() => setFxMode(m)} className={`rounded px-1.5 py-0.5 text-[9px] border transition ${fxMode === m ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-500'}`}><IconText size={14}>{m === 'lens' ? '⬚ Lens' : '⛶ Full'}</IconText></button>
                             ))}
                           </div>
                         )}
@@ -339,11 +340,11 @@ export function MoodCheck({ navigate }) {
                       <div className="grid grid-cols-3 gap-1">
                         <button onClick={() => setFxEffect(null)} className={`rounded py-1 text-[10px] border transition ${!fxEffect ? 'bg-accent-violet/25 border-accent-violet text-white' : 'border-ink-line text-gray-400 hover:text-white'}`}>Off</button>
                         {EFFECTS.map((e) => (
-                          <button key={e.id} onClick={() => setFxEffect(e.id)} title={e.label} className={`rounded py-1 text-[10px] border transition ${fxEffect === e.id ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-400 hover:text-white'}`}>{e.icon} {e.label}</button>
+                          <button key={e.id} onClick={() => setFxEffect(e.id)} title={e.label} className={`rounded py-1 text-[10px] border transition ${fxEffect === e.id ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan' : 'border-ink-line text-gray-400 hover:text-white'}`}><Icon glyph={e.icon} size={14} /> {e.label}</button>
                         ))}
                       </div>
                       {fxEffect && fxMode === 'lens' && (
-                        <p className="mt-1 text-[9px] text-gray-600">Frame the effect with your fingers ✋</p>
+                        <p className="mt-1 text-[9px] text-gray-600">Frame the effect with your fingers <Icon glyph="✋" /></p>
                       )}
                     </div>
 
@@ -353,15 +354,15 @@ export function MoodCheck({ navigate }) {
                       <div className="text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1">When you talk</div>
                       <div className="grid grid-cols-3 gap-1">
                         {TALK_KINDS.map((t) => (
-                          <button key={t.id} onClick={() => setTalkKind(t.id)} className={`rounded py-1 text-[10px] transition border ${talkKind === t.id ? 'bg-accent-violet/25 border-accent-violet text-white' : 'border-ink-line text-gray-400 hover:text-white'}`}>{t.label}</button>
+                          <button key={t.id} onClick={() => setTalkKind(t.id)} className={`rounded py-1 text-[10px] transition border ${talkKind === t.id ? 'bg-accent-violet/25 border-accent-violet text-white' : 'border-ink-line text-gray-400 hover:text-white'}`}><IconText size={13}>{t.label}</IconText></button>
                         ))}
                       </div>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={showHands} onChange={(e) => setShowHands(e.target.checked)} className="accent-accent-cyan" /> 🖐 Show my hands
+                      <input type="checkbox" checked={showHands} onChange={(e) => setShowHands(e.target.checked)} className="accent-accent-cyan" /> <Icon glyph="🖐" /> Show my hands
                     </label>
                     <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={drawOn} onChange={(e) => setDrawOn(e.target.checked)} className="accent-accent-cyan" /> ✍ Finger draw
+                      <input type="checkbox" checked={drawOn} onChange={(e) => setDrawOn(e.target.checked)} className="accent-accent-cyan" /> <Icon glyph="✍" /> Finger draw
                     </label>
                     <button onClick={() => { clearSignalRef.current++; }} className="w-full rounded-lg border border-ink-line py-1.5 text-[11px] text-gray-400 hover:text-white transition">Clear drawing</button>
                   </div>
@@ -369,7 +370,7 @@ export function MoodCheck({ navigate }) {
               </div>
 
               {/* Emotion color toggle */}
-              <button onClick={() => setEmotionColor((v) => !v)} title="Color the avatar by your current emotion" className={`rounded-lg border px-2.5 h-8 text-xs transition ${emotionColor ? 'border-accent-violet/50 bg-accent-violet/15 text-white' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}>🎭</button>
+              <button onClick={() => setEmotionColor((v) => !v)} title="Color the avatar by your current emotion" className={`rounded-lg border px-2.5 h-8 text-xs transition ${emotionColor ? 'border-accent-violet/50 bg-accent-violet/15 text-white' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}><Icon glyph="🎭" /></button>
 
               {/* Voice commands */}
               <button
@@ -377,26 +378,26 @@ export function MoodCheck({ navigate }) {
                 title='Voice commands — say "take a photo", an effect name, "lens", "fullscreen", "off"'
                 className={`rounded-lg border px-2.5 h-8 text-xs transition ${voiceOn ? 'border-red-500 bg-red-950/40 text-red-300' : 'border-ink-line bg-ink-soft/70 text-gray-300'}`}
               >
-                {voiceOn ? '🗣 …' : '🗣'}
+                <IconText size={14}>{voiceOn ? '🗣 …' : '🗣'}</IconText>
               </button>
 
               {/* Handbook */}
-              <button onClick={() => setShowBook(true)} title="Field guide" className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 h-8 text-xs text-gray-200 hover:border-accent-cyan transition">📖</button>
+              <button onClick={() => setShowBook(true)} title="Field guide" className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 h-8 text-xs text-gray-200 hover:border-accent-cyan transition"><Icon glyph="📖" /></button>
 
               {/* Mic */}
-              <button onClick={() => setMicOn((m) => !m)} title="Include microphone in recordings" className={`rounded-lg border px-2.5 h-8 text-xs transition ${micOn ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}>{micOn ? '🎙' : '🔇'}</button>
+              <button onClick={() => setMicOn((m) => !m)} title="Include microphone in recordings" className={`rounded-lg border px-2.5 h-8 text-xs transition ${micOn ? 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan' : 'border-ink-line bg-ink-soft/70 text-gray-500'}`}><Icon glyph={micOn ? '🎙' : '🔇'} /></button>
 
               {/* Present */}
-              <button onClick={togglePresent} className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 h-8 text-xs text-gray-200 hover:border-accent-cyan transition" title="Fullscreen avatar — share into Zoom / Meet">⛶</button>
+              <button onClick={togglePresent} className="rounded-lg border border-ink-line bg-ink-soft/70 px-2.5 h-8 text-xs text-gray-200 hover:border-accent-cyan transition" title="Fullscreen avatar — share into Zoom / Meet"><Icon glyph="⛶" /></button>
 
               {/* Record */}
               {recorder.supported && (recorder.recording ? (
                 <button onClick={recorder.stop} className="rounded-lg bg-red-600 px-3 h-8 text-xs text-white hover:bg-red-500 transition flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white animate-pulse" />{fmtTime(recorder.elapsed)}</button>
               ) : (
-                <button onClick={() => recorder.start({ withMic: micOn })} className="rounded-lg border border-red-800 bg-red-950/40 px-2.5 h-8 text-xs text-red-300 hover:bg-red-900/40 transition" title="Record a clip">● Rec</button>
+                <button onClick={() => recorder.start({ withMic: micOn })} className="rounded-lg border border-red-800 bg-red-950/40 px-2.5 h-8 text-xs text-red-300 hover:bg-red-900/40 transition" title="Record a clip"><Icon glyph="●" /> Rec</button>
               ))}
 
-              <button onClick={() => setShowSaveModal(true)} className="rounded-lg bg-violet-600 px-2.5 h-8 text-xs text-white hover:bg-violet-500 transition">📷</button>
+              <button onClick={() => setShowSaveModal(true)} className="rounded-lg bg-violet-600 px-2.5 h-8 text-xs text-white hover:bg-violet-500 transition"><Icon glyph="📷" /></button>
             </div>
           </header>
 
@@ -405,7 +406,7 @@ export function MoodCheck({ navigate }) {
             <MirroredPreview videoRef={videoRef} />
             <div className="rounded-xl bg-ink-soft/80 border border-ink-line backdrop-blur px-4 py-2.5 min-w-[220px]">
               <div className="flex items-center gap-3">
-                <span className="text-3xl leading-none">{config.emoji}</span>
+                <span className="text-3xl leading-none"><Icon glyph={config.emoji} size={32} /></span>
                 <div className="flex-1">
                   <div className="text-sm font-display font-bold" style={{ color: EMOTION_HEX[emotion] }}>{config.label}</div>
                   <div className="text-[10px] text-gray-500">{ready ? 'live emotion' : 'loading models…'}</div>
@@ -444,8 +445,8 @@ export function MoodCheck({ navigate }) {
             <video src={recorder.result.url} controls autoPlay loop className="w-full rounded-lg border border-ink-line bg-black" />
             <div className="flex gap-2 mt-4">
               <button onClick={recorder.clearResult} className="rounded-lg border border-ink-line px-3 py-2 text-xs text-gray-400 hover:text-white transition">Discard</button>
-              <button onClick={downloadClip} className="flex-1 rounded-lg border border-ink-line py-2 text-sm text-gray-200 hover:bg-ink-line/50 transition">⬇ Download</button>
-              <button onClick={handleSaveVideo} disabled={savingVideo} className="flex-1 rounded-lg bg-accent-violet/85 py-2 text-sm font-bold text-ink hover:bg-accent-violet transition disabled:opacity-50">{savingVideo ? 'Saving…' : '💾 Save to archive'}</button>
+              <button onClick={downloadClip} className="flex-1 rounded-lg border border-ink-line py-2 text-sm text-gray-200 hover:bg-ink-line/50 transition"><Icon glyph="⬇" /> Download</button>
+              <button onClick={handleSaveVideo} disabled={savingVideo} className="flex-1 rounded-lg bg-accent-violet/85 py-2 text-sm font-bold text-ink hover:bg-accent-violet transition disabled:opacity-50"><IconText size={14}>{savingVideo ? 'Saving…' : '💾 Save to archive'}</IconText></button>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { Icon } from '../Icon';
 import { useSocial } from '../../hooks/useSocial';
 import { useArtworkStore } from '../../hooks/useArtworkStore';
 import { avatarGradient, initials } from '../../utils/avatar';
@@ -108,7 +109,7 @@ export function PostCard({ post, me, onDelete, navigate }) {
           <div className="text-[11px] text-gray-500">
             <span className={MODE_COLOR[post.mode] || 'text-gray-400'}>{MODE_LABEL[post.mode] || post.mode}</span>
             <span> · {timeAgo(post.createdAt)}</span>
-            {post.remixOf && <span className="text-accent-cyan/70"> · ♻ remix of {post.remixOf.author}</span>}
+            {post.remixOf && <span className="text-accent-cyan/70"> · <Icon glyph="♻" /> remix of {post.remixOf.author}</span>}
           </div>
         </div>
         {!isMine && (
@@ -132,20 +133,20 @@ export function PostCard({ post, me, onDelete, navigate }) {
       <div className="px-4 pt-3 flex items-center gap-4 text-sm">
         <button onClick={like} className="group flex items-center gap-1.5 text-gray-300 hover:text-white transition">
           <span className={`text-lg transition-transform ${burst ? 'scale-150' : 'scale-100'} ${liked ? 'text-red-400' : ''}`}>
-            {liked ? '♥' : '♡'}
+            <Icon glyph={liked ? '♥' : '♡'} />
           </span>
           <span>{likeCount}</span>
         </button>
         <button onClick={() => setShowComments((s) => !s)} className="flex items-center gap-1.5 text-gray-300 hover:text-white transition">
-          <span className="text-base">💬</span>
+          <span className="text-base"><Icon glyph="💬" /></span>
           <span>{comments.length}</span>
         </button>
         <button onClick={share} className="flex items-center gap-1.5 text-gray-300 hover:text-white transition">
-          <span className="text-base">↗</span>
+          <span className="text-base"><Icon glyph="↗" /></span>
           <span className="text-xs">{copied ? 'Copied!' : 'Share'}</span>
         </button>
         <button onClick={remix} title="Open in the studio and build on it" className="flex items-center gap-1.5 text-accent-cyan/80 hover:text-accent-cyan transition">
-          <span className="text-base">♻</span>
+          <span className="text-base"><Icon glyph="♻" /></span>
           <span className="text-xs">Remix</span>
         </button>
         {isMine && (
@@ -186,7 +187,7 @@ export function PostCard({ post, me, onDelete, navigate }) {
                 <p className="text-[13px] text-gray-300 leading-snug break-words">{c.text}</p>
               </div>
               {(c.userId === me?.id || isMine) && (
-                <button onClick={() => removeComment(c.id)} className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-600 hover:text-red-400 transition">✕</button>
+                <button onClick={() => removeComment(c.id)} className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-600 hover:text-red-400 transition"><Icon glyph="✕" /></button>
               )}
             </div>
           ))}

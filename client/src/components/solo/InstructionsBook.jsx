@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Icon, IconText } from '../Icon';
 import { SOLO_PAGES } from '../help/manuals';
 
 // Flippable booklet used as the in-mode handbook. Navigate with Prev/Next,
@@ -50,9 +51,7 @@ export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
             onClick={onClose}
             title="Close (Esc)"
             className="absolute top-3 right-3 z-20 w-8 h-8 rounded-lg border border-ink-line text-gray-400 hover:text-white hover:border-gray-500 bg-ink/40 transition"
-          >
-            ✕
-          </button>
+          ><Icon glyph="✕" /></button>
 
           {/* Page (re-mount with key → flip animation) */}
           <div
@@ -65,14 +64,14 @@ export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
                 <div className="absolute inset-0 bg-gradient-to-br from-violet-600/25 via-transparent to-cyan-500/20 pointer-events-none" />
                 <div className="absolute -top-24 -right-16 w-64 h-64 rounded-full bg-violet-500/20 blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-24 -left-10 w-56 h-56 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none" />
-                <div className="relative text-5xl mb-1">📖</div>
+                <div className="relative text-5xl mb-1"><Icon glyph="📖" /></div>
                 <h2 className="relative font-display text-5xl font-extrabold tracking-tight bg-gradient-to-r from-violet-300 via-white to-cyan-300 bg-clip-text text-transparent">
-                  {pg.title}
+                  <IconText size={30}>{pg.title}</IconText>
                 </h2>
                 <p className="relative text-cyan-300/80 text-xs uppercase tracking-[0.4em]">{pg.subtitle}</p>
                 <div className="relative mt-4 space-y-2 max-w-xs">
                   {pg.body.map((b, i) => (
-                    <p key={i} className="text-gray-300 text-sm leading-relaxed">{b}</p>
+                    <p key={i} className="text-gray-300 text-sm leading-relaxed"><IconText size={14}>{b}</IconText></p>
                   ))}
                 </div>
               </div>
@@ -80,18 +79,18 @@ export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
               <div className="px-7 py-7">
                 <div className="flex items-center gap-3 mb-6">
                   <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/10 text-lg shadow-lg">
-                    {pg.icon}
+                    <Icon glyph={pg.icon} size={22} />
                   </span>
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-300/70">Section {pg.n}</div>
-                    <h2 className="font-display text-2xl text-white leading-tight">{pg.title}</h2>
+                    <h2 className="font-display text-2xl text-white leading-tight"><IconText size={22}>{pg.title}</IconText></h2>
                   </div>
                 </div>
                 <ul className="space-y-3.5">
                   {pg.items.map(([k, v], i) => (
                     <li key={i} className="flex flex-col gap-0.5 border-l-2 border-violet-500/30 pl-3">
-                      <span className="text-sm text-cyan-100 font-medium">{k}</span>
-                      <span className="text-[13px] text-gray-400 leading-snug">{v}</span>
+                      <span className="text-sm text-cyan-100 font-medium"><IconText size={15}>{k}</IconText></span>
+                      <span className="text-[13px] text-gray-400 leading-snug"><IconText size={13}>{v}</IconText></span>
                     </li>
                   ))}
                 </ul>
@@ -106,7 +105,7 @@ export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
               disabled={page === 0}
               className="rounded-lg border border-ink-line px-3 py-1.5 text-xs text-gray-300 enabled:hover:bg-ink-line/50 disabled:opacity-30 transition"
             >
-              ← Prev
+              <Icon glyph="←" /> Prev
             </button>
             <div className="flex items-center gap-1.5">
               {PAGES.map((_, i) => (
@@ -123,7 +122,7 @@ export function InstructionsBook({ pages = SOLO_PAGES, onClose }) {
               disabled={page === last}
               className="rounded-lg border border-ink-line px-3 py-1.5 text-xs text-gray-300 enabled:hover:bg-ink-line/50 disabled:opacity-30 transition"
             >
-              Next →
+              Next <Icon glyph="→" />
             </button>
           </div>
         </div>

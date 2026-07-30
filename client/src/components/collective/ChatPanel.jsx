@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Icon } from '../Icon';
 
 const hsl = (c) => (c ? `hsl(${c.h}, ${c.s}%, ${c.l}%)` : '#aaa');
 
@@ -48,7 +49,7 @@ export function ChatPanel({ messages, onSend, myId, forceOpen = false, placehold
         }`}
         title="Chat"
       >
-        💬
+        <Icon glyph="💬" size={20} />
         {!open && unread > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-accent-violet text-[10px] text-ink font-bold flex items-center justify-center px-1">
             {unread > 9 ? '9+' : unread}
@@ -63,7 +64,7 @@ export function ChatPanel({ messages, onSend, myId, forceOpen = false, placehold
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-[120px]">
             {messages.length === 0 && (
-              <p className="text-[11px] text-gray-600 text-center pt-6">Say hi to the chorus 👋</p>
+              <p className="text-[11px] text-gray-600 text-center pt-6">Say hi to the chorus <Icon glyph="👋" /></p>
             )}
             {messages.map((m, i) =>
               m.system ? (
@@ -93,9 +94,7 @@ export function ChatPanel({ messages, onSend, myId, forceOpen = false, placehold
             <button
               onClick={send}
               className="rounded-lg bg-accent-cyan/80 px-2.5 text-xs text-ink hover:bg-accent-cyan transition"
-            >
-              →
-            </button>
+            ><Icon glyph="→" /></button>
           </div>
         </div>
       )}

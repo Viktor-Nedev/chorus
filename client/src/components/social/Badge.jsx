@@ -1,3 +1,4 @@
+import { Icon } from '../Icon';
 // Бадж чип + ред от баджове до име. Server-ът връща наготово { icon, title }.
 
 export function Badge({ badge, size = 'sm' }) {
@@ -7,7 +8,7 @@ export function Badge({ badge, size = 'sm' }) {
       title={badge.title}
       className={`inline-flex items-center gap-1 rounded-full border border-yellow-500/40 bg-yellow-500/10 text-yellow-300 ${px}`}
     >
-      <span className="leading-none">{badge.icon}</span>
+      <span className="leading-none"><Icon glyph={badge.icon} size={14} /></span>
       {size === 'lg' && <span className="font-medium truncate max-w-[16ch]">{badge.title}</span>}
     </span>
   );
@@ -26,7 +27,7 @@ export function BadgeRow({ badges = [], max = 3 }) {
           title={b.title}
           className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-yellow-500/40 bg-yellow-500/10 text-[11px] leading-none"
         >
-          {b.icon}
+          <Icon glyph={b.icon} size={13} />
         </span>
       ))}
       {extra > 0 && <span className="text-[10px] text-yellow-400/80">+{extra}</span>}

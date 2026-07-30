@@ -1,4 +1,5 @@
 import { EMOTION_CONFIGS, EMOTION_HEX, GESTURE_LABELS } from '../constants/emotions';
+import { Icon } from './Icon';
 import { ParticleCam } from './ParticleCam';
 
 // Emotion sidebar (Solo) / участници + състояние (Collective)
@@ -26,9 +27,7 @@ export function EmotionSidebar({
         onClick={onToggle}
         className="absolute right-3 top-20 z-20 rounded-lg bg-ink-soft/80 border border-ink-line px-2 py-1 text-xs text-gray-400 hover:text-white backdrop-blur"
         title="Show emotion panel"
-      >
-        ◀
-      </button>
+      ><Icon glyph="◀" /></button>
     );
   }
 
@@ -67,7 +66,7 @@ export function EmotionSidebar({
         title="Drag to move the panel"
       >
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-gray-500 font-body">
-          <span className="text-gray-600">⠿</span> Live State
+          <span className="text-gray-600"><Icon glyph="⠿" /></span> Live State
         </span>
         <span className="flex items-center gap-1.5">
           <button
@@ -76,22 +75,20 @@ export function EmotionSidebar({
             className="text-xs text-gray-500 hover:text-white"
             title={detached ? 'Dock back to the corner' : 'Detach panel'}
           >
-            {detached ? '⤢' : '⛶'}
+            <Icon glyph={detached ? '⤢' : '⛶'} />
           </button>
           <button
             onClick={onToggle}
             onPointerDown={(e) => e.stopPropagation()}
             className="text-xs text-gray-500 hover:text-white"
             title="Hide panel"
-          >
-            ▶
-          </button>
+          ><Icon glyph="▶" /></button>
         </span>
       </div>
 
       {/* Текуща емоция */}
       <div className="flex items-center gap-3">
-        <span className="text-4xl">{config.emoji}</span>
+        <span className="text-4xl"><Icon glyph={config.emoji} size={38} /></span>
         <div>
           <div className="text-sm font-medium" style={{ color: EMOTION_HEX[emotion] }}>
             {config.label}
@@ -116,7 +113,7 @@ export function EmotionSidebar({
 
       {/* Жест */}
       <div className="flex items-center gap-2 text-xs text-gray-300">
-        <span className="text-xl w-7 text-center">{gestureInfo.emoji}</span>
+        <span className="text-xl w-7 text-center"><Icon glyph={gestureInfo.emoji} size={20} /></span>
         <span>{gestureInfo.label}</span>
       </div>
 
@@ -251,7 +248,7 @@ export function ParticipantsList({ users, myNickname, myColor, sessionCode }) {
             />
             <span className="text-gray-300">{u.nickname}</span>
             <span className="ml-auto">
-              {(EMOTION_CONFIGS[u.emotion] || EMOTION_CONFIGS.neutral).emoji}
+              <Icon glyph={(EMOTION_CONFIGS[u.emotion] || EMOTION_CONFIGS.neutral).emoji} size={16} />
             </span>
           </li>
         ))}

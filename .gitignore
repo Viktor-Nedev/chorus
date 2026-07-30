@@ -8,3 +8,7 @@ server/generated/
 server/users/
 server/competitions/
 server/videos/
+server/social/
+
+# Вътрешна документация за иконките (манифест + промпти за генериране)
+docs/

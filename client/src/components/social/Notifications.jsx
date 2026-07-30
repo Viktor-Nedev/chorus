@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Icon } from '../Icon';
 
 const ICON = { like: '♥', comment: '💬', follow: '👤', remix: '♻', badge: '🏆' };
 
@@ -25,7 +26,7 @@ export function NotificationsPanel({ items = [], onClose, onMarkRead }) {
     <div className="absolute right-0 top-12 z-40 w-80 max-h-[70vh] overflow-y-auto rounded-xl bg-ink-soft border border-ink-line shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-ink-line sticky top-0 bg-ink-soft">
         <span className="text-sm font-bold text-white">Notifications</span>
-        <button onClick={onClose} className="text-gray-500 hover:text-white transition text-xs">✕</button>
+        <button onClick={onClose} className="text-gray-500 hover:text-white transition text-xs"><Icon glyph="✕" /></button>
       </div>
       {items.length === 0 ? (
         <p className="text-xs text-gray-600 text-center py-10">Nothing yet.</p>
@@ -33,7 +34,7 @@ export function NotificationsPanel({ items = [], onClose, onMarkRead }) {
         <ul className="divide-y divide-ink-line">
           {items.map((n) => (
             <li key={n.id} className={`flex items-start gap-3 px-4 py-3 ${n.read ? '' : 'bg-accent-violet/[0.06]'}`}>
-              <span className="text-base leading-none mt-0.5">{ICON[n.type] || '✦'}</span>
+              <span className="text-base leading-none mt-0.5"><Icon glyph={ICON[n.type] || "✦"} size={16} /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] text-gray-200 leading-snug">{n.text}</p>
                 <span className="text-[10px] text-gray-600">{timeAgo(n.at)}</span>

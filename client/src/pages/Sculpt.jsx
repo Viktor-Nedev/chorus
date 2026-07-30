@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Icon, IconText } from '../components/Icon';
 import { SculptCanvas } from '../components/sculpt/SculptCanvas';
 import { ScenePanel } from '../components/sculpt/ScenePanel';
 import { ProfileModal } from '../components/sculpt/ProfileModal';
@@ -294,7 +295,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
       {/* ── HEADER ── */}
       <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-ink-line bg-ink-soft/50">
         <button onClick={() => navigate('landing')} className="text-sm text-gray-400 hover:text-white transition">
-          ← Back
+          <Icon glyph="←" /> Back
         </button>
         <span className="font-display font-extrabold text-sm text-white tracking-[0.2em]">SCULPT</span>
         {editingName ? (
@@ -309,17 +310,17 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
           />
         ) : (
           <button onClick={() => setEditingName(true)} className="text-xs text-gray-400 hover:text-white transition" title="Click to rename">
-            {projectName} ✏
+            {projectName} <Icon glyph="✏" />
           </button>
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => engineRef.current?.undo()} title="Undo (Ctrl+Z)" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm">↶</button>
-          <button onClick={() => engineRef.current?.redo()} title="Redo (Ctrl+Y)" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm">↷</button>
+          <button onClick={() => engineRef.current?.undo()} title="Undo (Ctrl+Z)" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"><Icon glyph="↶" /></button>
+          <button onClick={() => engineRef.current?.redo()} title="Redo (Ctrl+Y)" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"><Icon glyph="↷" /></button>
           <button onClick={handleNew} className="rounded-lg border border-ink-line px-3 h-8 text-xs text-gray-400 hover:text-white hover:bg-ink-line/40 transition">
             + New
           </button>
-          <button onClick={() => setShowBook(true)} title="Field guide" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm">📖</button>
+          <button onClick={() => setShowBook(true)} title="Field guide" className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-ink-line/50 transition text-sm"><Icon glyph="📖" /></button>
 
           {/* Export dropdown */}
           <div className="relative">
@@ -327,7 +328,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
               onClick={() => setExportOpen((o) => !o)}
               className="rounded-lg border border-accent-cyan/50 bg-accent-cyan/10 px-3 h-8 text-xs text-accent-cyan hover:bg-accent-cyan/20 transition"
             >
-              ⬇ Export
+              <Icon glyph="⬇" /> Export
             </button>
             {exportOpen && (
               <div className="absolute right-0 top-10 z-40 w-64 rounded-xl bg-ink-soft border border-ink-line shadow-xl p-1.5 animate-fade-in">
@@ -354,7 +355,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                 : 'border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20'
             }`}
           >
-            {liveOn ? '🔴 Live' : '◉ Live'}
+            <IconText size={14}>{liveOn ? '🔴 Live' : '◉ Live'}</IconText>
           </button>
 
           <button
@@ -362,7 +363,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
             disabled={liveOn}
             className="rounded-lg bg-accent-violet/80 px-4 h-8 text-xs font-bold text-ink hover:bg-accent-violet disabled:opacity-40 transition"
           >
-            💾 Save to Gallery
+            <Icon glyph="💾" /> Save to Gallery
           </button>
         </div>
       </header>
@@ -384,7 +385,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                   : 'text-gray-400 hover:bg-ink-line/50 hover:text-white border-transparent'
               }`}
             >
-              {t.icon}
+              <Icon glyph={t.icon} size={20} />
             </button>
           ))}
         </aside>
@@ -431,7 +432,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                   onClick={() => handleAddPrimitive(p.id)}
                   className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-gray-300 hover:bg-ink-line/50 hover:text-white transition"
                 >
-                  <span className="text-sm">{p.icon}</span> {p.label}
+                  <span className="text-sm"><Icon glyph={p.icon} size={16} /></span> {p.label}
                 </button>
               ))}
             </div>
@@ -486,7 +487,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                       : 'border-ink-line text-gray-400 hover:text-white'
                   }`}
                 >
-                  {penOpts.hand ? '✋ Hand' : '🖱 Mouse'}
+                  <IconText size={14}>{penOpts.hand ? '✋ Hand' : '🖱 Mouse'}</IconText>
                 </button>
                 <button
                   onClick={() => setPenOpts((o) => ({ ...o, emotionColor: !o.emotionColor }))}
@@ -497,7 +498,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
                       : 'border-ink-line text-gray-400 hover:text-white'
                   }`}
                 >
-                  🎨 {penOpts.emotionColor ? 'Emotion' : 'Auto'}
+                  <Icon glyph="🎨" /> {penOpts.emotionColor ? 'Emotion' : 'Auto'}
                 </button>
               </div>
 
@@ -581,7 +582,7 @@ export function Sculpt({ navigate, artworkToEdit, onArtworkConsumed }) {
 
       {toast && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 rounded-full bg-ink-soft border border-ink-line px-5 py-2 text-sm text-white backdrop-blur animate-fade-in">
-          {toast}
+          <IconText size={15}>{toast}</IconText>
         </div>
       )}
 
