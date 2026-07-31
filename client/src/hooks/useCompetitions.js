@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { describeSupabaseError } from '../lib/setupCheck';
 import { useAuth } from './useAuth';
 import { supabase } from '../lib/supabase';
 
@@ -79,7 +80,7 @@ export function useCompetitions() {
       created_by: uid, created_by_name: uname,
       ends_at: new Date(Date.now() + h * 3600 * 1000).toISOString(),
     }).select('*').single();
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(describeSupabaseError(error, 'Competitions'));
     return publicView(data, [], [], uid);
   }, [rest, uid, uname]);
 
@@ -101,7 +102,7 @@ export function useCompetitions() {
     const { error } = await supabase.from('competition_votes').upsert(
       { competition_id: compId, voter_id: uid, entry_user_id: entryUserId }, { onConflict: 'competition_id,voter_id' }
     );
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(describeSupabaseError(error, 'Competitions'));
     return oneView(compId);
   }, [rest, uid, oneView]);
 

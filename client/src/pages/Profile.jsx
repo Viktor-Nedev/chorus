@@ -44,12 +44,14 @@ export const levelFor = (points = 0) =>
 // Профилни stats от Supabase (когато няма Node сървър). Arena точки/battle wins
 // идват от Collective realtime сървъра → недостъпни serverless → 0.
 async function computeSupaStats(uid) {
-  const [artQ, compQ, entryQ, voteQ, badgeQ] = await Promise.all([
+  const [artQ, compQ, entryQ, voteQ, badgeQ, ptsQ, winQ] = await Promise.all([
     supabase.from('artworks').select('*', { count: 'exact', head: true }).eq('user_id', uid),
     supabase.from('competitions').select('id,ends_at'),
     supabase.from('competition_entries').select('competition_id,user_id'),
     supabase.from('competition_votes').select('competition_id,entry_user_id'),
     supabase.from('badges').select('id').eq('user_id', uid),
+    supabase.from('arena_points').select('*').eq('user_id', uid).maybeSingle(),
+    supabase.from('battle_wins').select('wins').eq('user_id', uid).maybeSingle(),
   ]);
   const comps = compQ.data || [], entries = entryQ.data || [], votes = voteQ.data || [];
   let competitionsWon = 0;
@@ -68,7 +70,12 @@ async function computeSupaStats(uid) {
     competitionsWon,
     competitionsEntered: entries.filter((e) => e.user_id === uid).length,
     badges: (badgeQ.data || []).length,
-    battleWins: 0, points: 0, roundsPlayed: 0, roundWins: 0, aiWins: 0,
+    // Арена точките вече живеят в Supabase (add_arena_points / add_battle_win)
+    battleWins: winQ?.data?.wins || 0,
+    points: ptsQ?.data?.points || 0,
+    roundsPlayed: ptsQ?.data?.rounds_played || 0,
+    roundWins: ptsQ?.data?.round_wins || 0,
+    aiWins: ptsQ?.data?.ai_wins || 0,
   };
 }
 

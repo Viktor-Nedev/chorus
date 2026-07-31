@@ -14,7 +14,7 @@ import { ArenaOverlay } from '../components/collective/ArenaOverlay';
 import { CamStrip } from '../components/collective/CamStrip';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { useAudio } from '../hooks/useAudio';
-import { useSocket } from '../hooks/useSocket';
+import { useCollectiveSession } from '../hooks/useCollectiveSession';
 import { useArtworkStore } from '../hooks/useArtworkStore';
 import { useAuth } from '../hooks/useAuth';
 import { useAvatars } from '../hooks/useAvatars';
@@ -592,7 +592,7 @@ function Session({ socket, navigate }) {
 }
 
 export function CollectiveCanvas({ navigate }) {
-  const socket = useSocket();
+  const socket = useCollectiveSession();
   const { user, token } = useAuth();
   const nicknameRef = useRef('');
 

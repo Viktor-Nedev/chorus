@@ -44,22 +44,28 @@ npm run dev          # → http://localhost:5173
 
 ### Serverless (Supabase) — за да работят логин/регистрация и Social от всяко устройство
 
-Хостнатият клиент на Vercel няма достъп до `localhost:3001`, затова auth и данните трябва да
-минат през Supabase (иначе логин от телефон/друг лаптоп дава `ERR_CONNECTION_REFUSED`).
+Хостнатият клиент на Vercel няма достъп до `localhost:3001`, затова всичко минава през
+Supabase + Vercel функции.
 
-1. **Supabase Dashboard**
-   - Project Settings → API → копирай **anon public** key.
-   - Authentication → Providers → **Email** = on; за незабавен signup **изключи „Confirm email"**
-     (иначе регистрацията иска email потвърждение). URL Configuration → Site URL = Vercel домейна.
-   - SQL Editor → пусни `supabase/social.sql`, после `supabase/data.sql` (таблици + RLS +
-     Storage bucket `artwork-videos`).
-2. **Vercel → Settings → Environment Variables:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-   → **Redeploy** (Vite вгражда env при билд).
-3. **Локално** (по избор): същите стойности в `client/.env`. Празен ключ = автоматичен Express
-   fallback (`localhost:3001`) — работи само на машината, която върти `/server`.
+**1. База данни (задължително)** — Supabase → **SQL Editor** → постави
+`supabase/setup.sql` → **Run**. Създава всички таблици, RLS правила и Storage bucket-ите.
+Безопасно е да се пуска повторно.
 
-Остават сървърно-зависими (нужен хостнат Node сървър): **Collective** (Socket.io realtime),
-**поеми** и **WebForge** (Gemini + hosting).
+**2. AI (поема + WebForge)** — Vercel → Settings → Environment Variables →
+`GEMINI_API_KEY` (същият от `server/.env`) → **Redeploy**. AI-то работи през
+`api/poem.js` и `api/webforge.js` на същия домейн — без CORS и без Supabase CLI.
+
+**3. Auth** — Supabase → Authentication → Email **on**, „Confirm email" **off**;
+URL Configuration → Site URL = Vercel домейна. Във Vercel трябва да има
+`VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`.
+
+**4. `VITE_SERVER_URL`** — в production **не** бива да сочи към `localhost`. Изтрий я
+(или я насочи към хостнат Node сървър, ако имаш такъв).
+
+Collective работи през **Supabase Realtime** (стаи, споделено платно, чат, реакции,
+камери, Game Arena) — не иска собствен сървър. Локално, без Supabase, пада обратно към
+Socket.io към `server/`.
+
 
 ## Gestures
 

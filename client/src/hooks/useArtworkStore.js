@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '../lib/supabase';
+import { poemUrl, AI_UNAVAILABLE } from '../lib/aiEndpoint';
+import { describeSupabaseError } from '../lib/setupCheck';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 const useSupa = !!supabase;
@@ -60,7 +62,7 @@ export function useArtworkStore() {
           total_users: artwork.totalUsers || null,
         };
         const { data, error } = await supabase.from('artworks').insert(row).select('id').single();
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(describeSupabaseError(error, 'Save'));
         return { id: data.id, success: true };
       }
       const res = await fetch(`${SERVER_URL}/api/gallery`, {
@@ -78,7 +80,7 @@ export function useArtworkStore() {
     try {
       if (useSupa) {
         const { data, error } = await supabase.from('artworks').select(LIST_COLS).order('created_at', { ascending: false });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(describeSupabaseError(error, 'Loading the archive'));
         return (data || []).map((r) => mapArtwork(r));
       }
       const res = await fetch(`${SERVER_URL}/api/gallery`);
@@ -92,7 +94,7 @@ export function useArtworkStore() {
   const fetchArtwork = useCallback(async (id) => {
     if (useSupa) {
       const { data, error } = await supabase.from('artworks').select('*').eq('id', id).single();
-      if (error) throw new Error('Not found');
+      if (error) throw new Error(describeSupabaseError(error, 'Opening the artwork'));
       return mapArtwork(data, true);
     }
     const res = await fetch(`${SERVER_URL}/api/gallery/${id}`);
@@ -103,7 +105,7 @@ export function useArtworkStore() {
   const deleteArtwork = useCallback(async (id) => {
     if (useSupa) {
       const { error } = await supabase.from('artworks').delete().eq('id', id);
-      if (error) throw new Error('Delete failed');
+      if (error) throw new Error(describeSupabaseError(error, 'Delete'));
       return { success: true };
     }
     const res = await fetch(`${SERVER_URL}/api/gallery/${id}`, { method: 'DELETE', headers: authHeaders() });
@@ -116,7 +118,7 @@ export function useArtworkStore() {
     if (useSupa) {
       const path = `${user?.id || 'anon'}/${crypto.randomUUID()}.webm`;
       const { error } = await supabase.storage.from('artwork-videos').upload(path, blob, { contentType: 'video/webm', upsert: false });
-      if (error) throw new Error('Video upload failed');
+      if (error) throw new Error(describeSupabaseError(error, 'Video upload'));
       const { data } = supabase.storage.from('artwork-videos').getPublicUrl(path);
       return { url: data.publicUrl };
     }
@@ -129,13 +131,16 @@ export function useArtworkStore() {
     return res.json();
   }, [token, user?.id]);
 
-  // Поемите изискват сървъра (Gemini). При serverless просто хвърля → save-ът
-  // на творбата не зависи от това (поемата е по избор).
+  // Поемата минава през Vercel функцията (/api/poem) на хостнатия сайт, или
+  // през локалния Express. Ако не успее, записът на творбата пак продължава.
   const generatePoem = useCallback(async (payload) => {
-    const res = await fetch(`${SERVER_URL}/api/poem`, {
+    const res = await fetch(poemUrl(), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error('Poem generation failed');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || AI_UNAVAILABLE);
+    }
     const data = await res.json();
     return data.poem;
   }, []);

@@ -1,13 +1,28 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { webforgeRequest, AI_UNAVAILABLE } from '../lib/aiEndpoint';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 const BASE = `${SERVER_URL}/api/webforge`;
 
-// Дали Supabase Edge Function-ът е наличен (разбираме го при първия успешен
-// call; при 404/липса падаме към Express и не опитваме повече).
-let edgeAvailable = !!supabase;
+// AI заявка → Vercel функция на същия домейн (или локалния Express).
+async function callAi(action, payload) {
+  const { url, body } = webforgeRequest(action, payload);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw Object.assign(new Error(AI_UNAVAILABLE), { data: {} });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data });
+  return data;
+}
 
+// Само за локалния Express път (Docker / server-side save)
 async function post(path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -19,48 +34,6 @@ async function post(path, body) {
   return data;
 }
 
-// AI през Edge Function-а; при липса/грешка на функцията → Express сървърът.
-async function callAi(action, payload, expressPath) {
-  if (supabase && edgeAvailable) {
-    try {
-      const { data, error } = await supabase.functions.invoke('webforge-ai', {
-        body: { action, ...payload },
-      });
-      if (!error) {
-        if (data?.error) throw Object.assign(new Error(data.error), { data });
-        return data;
-      }
-      // Функцията върна грешка: quota → нагоре; иначе fallback към Express
-      const ctx = error.context;
-      const body = await ctx?.json?.().catch(() => null);
-      if (body?.error === 'quota_exceeded') {
-        throw Object.assign(new Error('Gemini quota exceeded'), { data: body });
-      }
-      if (ctx?.status && ctx.status !== 404) {
-        throw Object.assign(new Error(body?.error || error.message), { data: body || {} });
-      }
-      edgeAvailable = false; // функцията не е деплойната
-    } catch (e) {
-      if (e.data) throw e; // истинска AI грешка — не я маскирай
-      edgeAvailable = false;
-    }
-  }
-  try {
-    return await post(expressPath, payload);
-  } catch (e) {
-    if (e.message?.includes('Failed to fetch') || e.name === 'TypeError') {
-      throw Object.assign(
-        new Error(
-          "AI is unavailable: the CHORUS server isn't reachable and the Supabase " +
-          "'webforge-ai' function isn't deployed. You can still draw, preview and download."
-        ),
-        { data: {} }
-      );
-    }
-    throw e;
-  }
-}
-
 export function useWebforge() {
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -68,7 +41,7 @@ export function useWebforge() {
   const analyze = useCallback(async (payload) => {
     setAnalyzing(true);
     try {
-      return await callAi('analyze', payload, '/analyze');
+      return await callAi('analyze', payload);
     } finally {
       setAnalyzing(false);
     }
@@ -77,15 +50,15 @@ export function useWebforge() {
   const generate = useCallback(async (payload) => {
     setGenerating(true);
     try {
-      return await callAi('generate', payload, '/generate');
+      return await callAi('generate', payload);
     } finally {
       setGenerating(false);
     }
   }, []);
 
-  const chat = useCallback((payload) => callAi('chat', payload, '/chat'), []);
+  const chat = useCallback((payload) => callAi('chat', payload), []);
 
-  // Само за локалния Express път (Docker / server-side save)
+  // Docker/save съществуват само при локален Express сървър
   const save = useCallback((payload) => post('/save', payload), []);
   const deployDocker = useCallback((projectId) => post('/deploy/docker', { projectId }), []);
 

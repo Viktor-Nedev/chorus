@@ -12,6 +12,7 @@ import { Social } from './pages/Social';
 import { TransitionVeil } from './components/TransitionVeil';
 import { Cursor } from './components/Cursor';
 import { NavOrb } from './components/NavOrb';
+import { SetupBanner } from './components/SetupBanner';
 import { useAuth } from './hooks/useAuth';
 
 const VEIL_IN_MS = 340;
@@ -89,6 +90,7 @@ export default function App() {
       {/* Nav launcher — само на началната страница и само след логин */}
       {user && screen === 'landing' && <NavOrb navigate={navigate} current={screen} />}
 
+      <SetupBanner />
       <TransitionVeil phase={veilPhase} />
       <Cursor active={cursorActive} />
       <div className="grain-overlay" />

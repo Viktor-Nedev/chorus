@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { describeSupabaseError } from '../lib/setupCheck';
 import { useAuth } from './useAuth';
 import { supabase, SOCIAL_BACKEND } from '../lib/supabase';
 import { CATEGORIES, CATEGORY_BY_KEY, currentSeason, seasonEndsAt, seasonLabel } from '../constants/social';
@@ -102,7 +103,7 @@ export function useSocial() {
         query = query.in('user_id', [...(fol || []).map((f) => f.followee_id), uid]);
       }
       const { data, error } = await query;
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       let posts = data || [];
       if (q) {
         const needle = String(q).toLowerCase();
@@ -150,7 +151,7 @@ export function useSocial() {
       };
       const { data, error } = await supabase.from('posts').insert(row)
         .select('*, likes(user_id), comments(id,post_id,user_id,author,text,created_at)').single();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       const myBadges = {}; myBadges[uid] = await fetchBadgesRaw(uid);
       return mapPost(data, uid, new Set(), myBadges);
     },
@@ -161,7 +162,7 @@ export function useSocial() {
     async (id) => {
       if (!useSupa) return rest(`/api/social/posts/${id}`, { method: 'DELETE' });
       const { error } = await supabase.from('posts').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       return { success: true };
     },
     [useSupa, rest]
@@ -184,7 +185,7 @@ export function useSocial() {
       if (!useSupa) return rest(`/api/social/posts/${id}/comment`, { method: 'POST', body: JSON.stringify({ text }) });
       const { data, error } = await supabase.from('comments')
         .insert({ post_id: id, user_id: uid, author: uname, text: String(text).slice(0, 400) }).select().single();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       return mapComment(data);
     },
     [useSupa, rest, uid, uname]
@@ -194,7 +195,7 @@ export function useSocial() {
     async (id, cid) => {
       if (!useSupa) return rest(`/api/social/posts/${id}/comment/${cid}`, { method: 'DELETE' });
       const { error } = await supabase.from('comments').delete().eq('id', cid);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       return { success: true };
     },
     [useSupa, rest]
@@ -301,7 +302,7 @@ export function useSocial() {
         { season: currentSeason(), category, user_id: uid, username: uname, artwork_id: artworkId, image_data: art.imageData, title: art.title || 'Untitled' },
         { onConflict: 'season,category,user_id' }
       );
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       return { success: true };
     },
     [useSupa, rest, uid, uname]
@@ -315,7 +316,7 @@ export function useSocial() {
         { season: currentSeason(), category, voter_id: uid, entry_user_id: entryUserId },
         { onConflict: 'season,category,voter_id' }
       );
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(describeSupabaseError(error, 'Social'));
       return { success: true };
     },
     [useSupa, rest, uid]
